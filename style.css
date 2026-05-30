@@ -10,6 +10,11 @@
   box-sizing:border-box;
 }
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
 /* ROOT */
 
 :root{
@@ -118,6 +123,7 @@ body{
 .logoLogin{
 
   width:120px;
+  height:auto;
 
   display:block;
 
@@ -273,6 +279,7 @@ button:active{
 .logoSidebar{
 
   width:90px;
+  height:auto;
 
   display:block;
 
@@ -690,101 +697,6 @@ tbody td{
   color:#dbeafe;
 }
 
-/* RESPONSIVE */
-
-@media(max-width:1000px){
-
-  .sidebar{
-    width:95px;
-  }
-
-  .logoSidebar{
-    width:55px;
-  }
-
-  .sidebar h2{
-    font-size:14px;
-  }
-
-  .sidebar button{
-
-    justify-content:center;
-
-    font-size:12px;
-
-    padding:14px 10px;
-  }
-
-  .main{
-    padding:20px;
-  }
-}
-
-@media(max-width:768px){
-
-  .cards{
-    grid-template-columns:1fr;
-  }
-
-  table{
-    display:block;
-    overflow-x:auto;
-  }
-}
-
-@media(max-width:600px){
-
-  .app{
-    flex-direction:column;
-  }
-
-  .sidebar{
-
-    width:100%;
-
-    height:auto;
-
-    display:flex;
-
-    overflow:auto;
-
-    gap:10px;
-
-    padding:15px;
-  }
-
-  .logoSidebar{
-    display:none;
-  }
-
-  .sidebar h2{
-    display:none;
-  }
-
-  .sidebar button{
-    min-width:150px;
-  }
-
-  .main{
-    padding:15px;
-  }
-
-  h1{
-    font-size:26px;
-  }
-
-  .card h2{
-    font-size:28px;
-  }
-
-  .loginBox{
-    padding:30px 24px;
-  }
-
-  .logoLogin{
-    width:90px;
-  }
-}
 /* TOPBAR */
 
 .topbar{
@@ -926,27 +838,6 @@ tbody td{
   color:#22c55e;
 }
 
-/* RESPONSIVO */
-
-@media(max-width:768px){
-
-  .topbar{
-
-    flex-direction:column;
-
-    align-items:flex-start;
-  }
-
-  .topbarRight{
-
-    width:100%;
-  }
-
-  .searchInput{
-
-    width:100%;
-  }
-}
 td button{
 
   margin:4px;
@@ -955,6 +846,7 @@ td button{
 
   font-size:13px;
 }
+
 .loading{
 
   width:50px;
@@ -975,52 +867,364 @@ td button{
     transform:rotate(360deg);
   }
 }
-/* 🔥 RESPONSIVIDADE BASE */
-@media (max-width: 768px) {
 
-  body {
-    padding: 10px;
+/* ============================================= */
+/* RESPONSIVIDADE - TABLET (1000px) */
+/* ============================================= */
+
+@media(max-width:1000px){
+
+  .sidebar{
+    width:95px;
   }
 
-  /* container principal */
-  .container, .main, .content {
-    width: 100%;
-    flex-direction: column;
+  .logoSidebar{
+    width:55px;
+    height:auto;
   }
 
-  /* cards e blocos */
-  .card, .box, .panel {
-    width: 100% !important;
-    margin-bottom: 10px;
+  .sidebar h2{
+    font-size:14px;
   }
 
-  /* textos */
-  h1 {
-    font-size: 22px;
+  .sidebar button{
+
+    justify-content:center;
+
+    font-size:12px;
+
+    padding:14px 10px;
   }
 
-  h2 {
-    font-size: 18px;
+  .main{
+    padding:20px;
   }
-
-  /* botões */
-  button {
-    width: 100%;
-    font-size: 16px;
-  }
-
-  /* inputs */
-  input, select {
-    width: 100%;
-    font-size: 16px;
-  }
-
 }
-html, body {
-  overflow-x: hidden;
+
+/* ============================================= */
+/* RESPONSIVIDADE - TABLET (768px) */
+/* ============================================= */
+
+@media(max-width:768px){
+
+  .cards{
+    grid-template-columns:1fr;
+  }
+
+  table{
+    display:block;
+    overflow-x:auto;
+  }
+
+  .topbar{
+    flex-direction:column;
+    align-items:flex-start;
+    padding:15px;
+  }
+
+  .topbarRight{
+    width:100%;
+  }
+
+  .searchInput{
+    width:100%;
+  }
+
+  h1{
+    font-size:24px;
+  }
+
+  .card h2{
+    font-size:28px;
+  }
 }
-html, body {
-  overflow-x: hidden;
-}.flex {
-  flex-direction: column;
+
+/* ============================================= */
+/* RESPONSIVIDADE - MOBILE (600px) */
+/* ============================================= */
+
+@media(max-width:600px){
+
+  /* Layout Principal */
+  .app{
+    flex-direction:column;
+  }
+
+  /* Sidebar Mobile */
+  .sidebar{
+
+    width:100%;
+
+    height:auto;
+
+    display:flex;
+
+    overflow-x:auto;
+
+    gap:10px;
+
+    padding:12px;
+
+    position:static;
+
+    flex-wrap:nowrap;
+
+    min-height:auto;
+  }
+
+  .logoSidebar{
+    display:none;
+  }
+
+  .sidebar h2{
+    display:none;
+  }
+
+  .sidebar button{
+    min-width:140px;
+    padding:12px 14px;
+    font-size:11px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+
+  /* Main Content */
+  .main{
+    padding:12px;
+  }
+
+  /* Login Box */
+  .loginBox{
+    padding:24px 16px;
+    border-radius:20px;
+  }
+
+  .logoLogin{
+    width:80px;
+    height:auto;
+    margin-bottom:16px;
+  }
+
+  .loginBox h1{
+    font-size:26px;
+    margin-bottom:20px;
+  }
+
+  /* Titles */
+  h1{
+    font-size:22px;
+    margin-bottom:16px;
+  }
+
+  h2{
+    font-size:18px;
+  }
+
+  /* Cards */
+  .cards{
+    gap:12px;
+  }
+
+  .card{
+    padding:16px;
+  }
+
+  .card h2{
+    font-size:24px;
+  }
+
+  .card h3{
+    font-size:13px;
+  }
+
+  /* Form Grid */
+  .gridClientes{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+
+  /* Inputs e Selects */
+  input,
+  select{
+    padding:12px 14px;
+    font-size:16px;
+    margin-bottom:10px;
+    border-radius:12px;
+  }
+
+  /* Buttons */
+  button{
+    width:100%;
+    padding:12px 16px;
+    font-size:14px;
+    margin-bottom:8px;
+  }
+
+  .loginBox button{
+    width:100%;
+  }
+
+  /* Topbar */
+  .topbar{
+    flex-direction:column;
+    align-items:stretch;
+    padding:12px;
+    margin-bottom:20px;
+  }
+
+  .topbarLeft h2{
+    font-size:22px;
+  }
+
+  .topbarLeft p{
+    font-size:12px;
+  }
+
+  .topbarRight{
+    width:100%;
+    flex-direction:column;
+  }
+
+  .searchInput{
+    width:100%;
+    padding:10px 12px;
+    font-size:14px;
+  }
+
+  /* User Box */
+  .userBox{
+    width:100%;
+    gap:10px;
+  }
+
+  .userBox img{
+    width:40px;
+    height:40px;
+  }
+
+  /* Tables */
+  table{
+    font-size:12px;
+    margin-top:15px;
+    border-radius:12px;
+  }
+
+  thead th{
+    padding:10px 8px;
+    font-size:12px;
+  }
+
+  tbody td{
+    padding:10px 8px;
+    font-size:12px;
+  }
+
+  td button{
+    margin:2px;
+    padding:6px 8px;
+    font-size:11px;
+  }
+
+  /* Images */
+  img{
+    max-width:100%;
+    height:auto;
+    display:block;
+  }
+
+  /* Historico */
+  .historico{
+    padding:16px;
+    margin-top:15px;
+  }
+
+  .historico p{
+    font-size:13px;
+  }
+}
+
+/* ============================================= */
+/* RESPONSIVIDADE - MOBILE PEQUENO (480px) */
+/* ============================================= */
+
+@media(max-width:480px){
+
+  .sidebar button{
+    min-width:120px;
+    padding:10px 10px;
+    font-size:10px;
+    gap:6px;
+  }
+
+  .main{
+    padding:8px;
+  }
+
+  h1{
+    font-size:20px;
+  }
+
+  h2{
+    font-size:16px;
+  }
+
+  .loginBox{
+    padding:20px 14px;
+  }
+
+  .logoLogin{
+    width:70px;
+  }
+
+  .loginBox h1{
+    font-size:24px;
+  }
+
+  .card{
+    padding:14px;
+  }
+
+  .card h2{
+    font-size:20px;
+  }
+
+  input,
+  select{
+    padding:10px 12px;
+    font-size:14px;
+    margin-bottom:8px;
+  }
+
+  button{
+    padding:10px 14px;
+    font-size:13px;
+  }
+
+  table{
+    font-size:11px;
+  }
+
+  thead th{
+    padding:8px 6px;
+    font-size:11px;
+  }
+
+  tbody td{
+    padding:8px 6px;
+    font-size:11px;
+  }
+
+  td button{
+    margin:1px;
+    padding:4px 6px;
+    font-size:10px;
+  }
+
+  .topbar{
+    padding:10px;
+  }
+
+  .topbarLeft h2{
+    font-size:18px;
+  }
 }
