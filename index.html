@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+>
+
+<title>FTTHGestor Pro</title>
+<link rel="icon" type="image/png" href="img/logo.png">
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<!-- LOGIN -->
+
+<div class="loginTela" id="loginTela">
+
+<div class="loginBox">
+
+<img
+src="./img/logo.png"
+class="logoSidebar"
+alt="Logo"
+>
+
+<h1>Login</h1>
+
+<input
+type="email"
+id="usuario"
+placeholder="E-mail"
+>
+
+<input
+type="password"
+id="senha"
+placeholder="Senha"
+>
+
+<button onclick="fazerLogin()">
+Entrar
+</button>
+
+</div>
+
+</div>
+
+<!-- SISTEMA -->
+
+<div
+class="app"
+id="sistema"
+style="display:none;"
+>
+
+<aside class="sidebar">
+
+<img
+src="img/logo.png"
+class="logoSidebar"
+alt="Logo"
+>
+
+<h2>Gestão de Clientes</h2>
+
+<button onclick="mostrarSecao('dashboard')">
+📊 Dashboard
+</button>
+
+<button onclick="mostrarSecao('clientes')">
+👥 Clientes
+</button>
+
+<button onclick="mostrarSecao('planos')">
+🌐 Planos
+</button>
+
+<button onclick="mostrarSecao('financeiro')">
+💰 Financeiro
+</button>
+
+<button onclick="logout()">
+🚪 Sair
+</button>
+
+</aside>
+
+<main class="main">
+
+<div class="topbar">
+
+<div class="topbarLeft">
+
+<h2>Dashboard FTTH</h2>
+
+<p>
+Gestão inteligente para provedores
+</p>
+
+</div>
+
+</div>
+
+<!-- DASHBOARD -->
+
+<section
+id="dashboard"
+class="secao"
+>
+
+<h1>Dashboard</h1>
+
+<div class="cards">
+
+<div class="card">
+
+<h3>Total de Clientes</h3>
+
+<h2 id="totalClientes">0</h2>
+
+</div>
+
+<div class="card">
+
+<h3>Clientes Ativos</h3>
+
+<h2 id="clientesAtivos">0</h2>
+
+</div>
+
+<div class="card">
+
+<h3>Faturamento Mensal</h3>
+
+<h2 id="faturamentoMensal">
+R$ 0
+</h2>
+
+</div>
+
+<div class="card">
+
+<h3>Ticket Médio</h3>
+
+<h2 id="ticketMedio">
+R$ 0
+</h2>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- CLIENTES -->
+
+<section
+id="clientes"
+class="secao"
+>
+
+<h1>CRM de Clientes FTTH</h1>
+
+<div class="gridClientes">
+
+<input id="nome" placeholder="Nome">
+
+<input id="cpf" placeholder="CPF/CNPJ">
+
+<input id="telefone" placeholder="Telefone">
+
+<input id="email" placeholder="E-mail">
+
+<input id="endereco" placeholder="Endereço">
+
+<input id="bairro" placeholder="Bairro">
+
+<input id="cidade" placeholder="Cidade">
+
+<input id="cep" placeholder="CEP">
+
+<select id="status">
+
+<option value="Ativo">Ativo</option>
+
+<option value="Inadimplente">
+Inadimplente
+</option>
+
+<option value="Bloqueado">
+Bloqueado
+</option>
+
+</select>
+
+<input id="plano" placeholder="Plano">
+
+<input
+id="valor"
+type="number"
+placeholder="Valor"
+>
+
+<input
+id="vencimento"
+type="number"
+placeholder="Vencimento"
+>
+
+</div>
+
+<button onclick="salvarCliente()">
+➕ Cadastrar Cliente
+</button>
+
+<button onclick="atualizarCliente()">
+💾 Atualizar Cliente
+</button>
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Cliente</th>
+
+<th>Telefone</th>
+
+<th>Status</th>
+
+<th>Plano</th>
+
+<th>Ações</th>
+
+</tr>
+
+</thead>
+
+<tbody id="listaClientes"></tbody>
+
+</table>
+
+</section>
+
+<!-- PLANOS -->
+
+<section
+id="planos"
+class="secao"
+>
+
+<h1>Planos</h1>
+
+<div class="gridClientes">
+
+<input
+id="nomePlano"
+placeholder="Nome"
+>
+
+<input
+id="velocidadePlano"
+placeholder="Velocidade"
+>
+
+<input
+id="valorPlano"
+placeholder="Valor"
+>
+
+</div>
+
+<button onclick="salvarPlano()">
+➕ Cadastrar Plano
+</button>
+<button onclick="atualizarPlano()">
+💾 Atualizar Plano
+</button>
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Plano</th>
+
+<th>Velocidade</th>
+
+<th>Valor</th>
+
+<th>Ações</th>
+
+</tr>
+
+</thead>
+
+<tbody id="listaPlanos"></tbody>
+
+</table>
+
+</section>
+
+<!-- FINANCEIRO -->
+
+<section
+id="financeiro"
+class="secao"
+>
+
+<h1>Financeiro</h1>
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Cliente</th>
+
+<th>Plano</th>
+
+<th>Valor</th>
+
+</tr>
+
+</thead>
+
+<tbody id="financeiroTabela"></tbody>
+
+</table>
+
+</section>
+
+</main>
+
+</div>
+
+<!-- FIREBASE -->
+
+<!-- FIREBASE -->
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script src="firebase.js"></script>
+
+<script src="app.js"></script>
+
+</body>
+</html>
