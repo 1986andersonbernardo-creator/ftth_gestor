@@ -975,3 +975,52 @@ td button{
     transform:rotate(360deg);
   }
 }
+/* 🔥 RESPONSIVIDADE BASE */
+@media (max-width: 768px) {
+
+  body {
+    padding: 10px;
+  }
+
+  /* container principal */
+  .container, .main, .content {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  /* cards e blocos */
+  .card, .box, .panel {
+    width: 100% !important;
+    margin-bottom: 10px;
+  }
+
+  /* textos */
+  h1 {
+    font-size: 22px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  /* botões */
+  button {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  /* inputs */
+  input, select {
+    width: 100%;
+    font-size: 16px;
+  }
+
+}
+html, body {
+  overflow-x: hidden;
+}
+html, body {
+  overflow-x: hidden;
+}.flex {
+  flex-direction: column;
+}
