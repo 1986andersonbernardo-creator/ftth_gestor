@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FTTHGestor Pro</title>
   <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -18,7 +19,9 @@
       <h1>Login</h1>
       <input type="email" id="usuario" placeholder="E-mail">
       <input type="password" id="senha" placeholder="Senha">
-      <button onclick="fazerLogin()">Entrar</button>
+      <button onclick="fazerLogin()">
+        <i class="fas fa-sign-in-alt"></i> Entrar
+      </button>
     </div>
   </div>
 
@@ -26,13 +29,36 @@
   <div class="app" id="sistema" style="display:none;">
 
     <aside class="sidebar">
-      <img src="./img/logo.png" class="logoLogin" alt="Logo">
-      <h2>Gestão de Clientes</h2>
-      <button onclick="mostrarSecao('dashboard')">📊 Dashboard</button>
-      <button onclick="mostrarSecao('clientes')">👥 Clientes</button>
-      <button onclick="mostrarSecao('planos')">🌐 Planos</button>
-      <button onclick="mostrarSecao('financeiro')">💰 Financeiro</button>
-      <button onclick="logout()">🚪 Sair</button>
+      <div class="sidebarTop">
+        <img src="./img/logo.png" class="logoLogin" alt="Logo">
+        <h2>Gestão de Clientes</h2>
+      </div>
+      
+      <nav class="sidebarNav">
+        <button class="navBtn" onclick="mostrarSecao('dashboard')">
+          <i class="fas fa-chart-pie"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="navBtn" onclick="mostrarSecao('clientes')">
+          <i class="fas fa-user-group"></i>
+          <span>Clientes</span>
+        </button>
+        <button class="navBtn" onclick="mostrarSecao('planos')">
+          <i class="fas fa-tower-broadcast"></i>
+          <span>Planos</span>
+        </button>
+        <button class="navBtn" onclick="mostrarSecao('financeiro')">
+          <i class="fas fa-wallet"></i>
+          <span>Financeiro</span>
+        </button>
+      </nav>
+
+      <div class="sidebarBottom">
+        <button class="navBtn navBtnLogout" onclick="logout()">
+          <i class="fas fa-power-off"></i>
+          <span>Sair</span>
+        </button>
+      </div>
     </aside>
 
     <main class="main">
@@ -49,18 +75,30 @@
         <h1>Dashboard</h1>
         <div class="cards">
           <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-users"></i>
+            </div>
             <h3>Total de Clientes</h3>
             <h2 id="totalClientes">0</h2>
           </div>
           <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-user-check"></i>
+            </div>
             <h3>Clientes Ativos</h3>
             <h2 id="clientesAtivos">0</h2>
           </div>
           <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-sack-dollar"></i>
+            </div>
             <h3>Faturamento Mensal</h3>
             <h2 id="faturamentoMensal">R$ 0</h2>
           </div>
           <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-chart-column"></i>
+            </div>
             <h3>Ticket Médio</h3>
             <h2 id="ticketMedio">R$ 0</h2>
           </div>
@@ -90,21 +128,29 @@
           <input id="valor" type="number" placeholder="Valor">
           <input id="vencimento" type="number" placeholder="Vencimento">
         </div>
-        <button onclick="salvarCliente()">➕ Cadastrar Cliente</button>
-        <button onclick="atualizarCliente()">💾 Atualizar Cliente</button>
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Telefone</th>
-              <th>Status</th>
-              <th>Plano</th>
-              <th>Vencimento</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="listaClientes"></tbody>
-        </table>
+        <div class="btnGroupClientes">
+          <button class="btnPrimario" onclick="salvarCliente()">
+            <i class="fas fa-plus"></i> Cadastrar Cliente
+          </button>
+          <button class="btnSecundario" onclick="atualizarCliente()">
+            <i class="fas fa-save"></i> Atualizar Cliente
+          </button>
+        </div>
+        <div class="tableContainer">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Telefone</th>
+                <th>Status</th>
+                <th>Plano</th>
+                <th>Vencimento</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="listaClientes"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- PLANOS -->
@@ -115,38 +161,419 @@
           <input id="velocidadePlano" placeholder="Velocidade">
           <input id="valorPlano" placeholder="Valor">
         </div>
-        <button onclick="salvarPlano()">➕ Cadastrar Plano</button>
-        <button onclick="atualizarPlano()">💾 Atualizar Plano</button>
-        <table>
-          <thead>
-            <tr>
-              <th>Plano</th>
-              <th>Velocidade</th>
-              <th>Valor</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="listaPlanos"></tbody>
-        </table>
+        <div class="btnGroupClientes">
+          <button class="btnPrimario" onclick="salvarPlano()">
+            <i class="fas fa-plus"></i> Cadastrar Plano
+          </button>
+          <button class="btnSecundario" onclick="atualizarPlano()">
+            <i class="fas fa-save"></i> Atualizar Plano
+          </button>
+        </div>
+        <div class="tableContainer">
+          <table>
+            <thead>
+              <tr>
+                <th>Plano</th>
+                <th>Velocidade</th>
+                <th>Valor</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="listaPlanos"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- FINANCEIRO -->
       <section id="financeiro" class="secao">
-        <h1>Financeiro</h1>
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Plano</th>
-              <th>Valor</th>
-            </tr>
-          </thead>
-          <tbody id="financeiroTabela"></tbody>
-        </table>
+
+        <!-- ============================= -->
+        <!-- DASHBOARD FINANCEIRO -->
+        <!-- ============================= -->
+
+        <div class="financeiroDashboard">
+          <h1>Financeiro</h1>
+
+          <div class="cardsFinanceiro">
+            <div class="cardFinanceiro cardPrimario">
+              <div class="cardFinaceiroHeader">
+                <h3>Faturamento do Mês</h3>
+                <span class="iconCard"><i class="fas fa-chart-line"></i></span>
+              </div>
+              <h2 id="faturamentoMes">R$ 0,00</h2>
+              <p id="faturamentoMesVariacao" class="variacao">+0% vs mês anterior</p>
+            </div>
+
+            <div class="cardFinanceiro cardSucesso">
+              <div class="cardFinaceiroHeader">
+                <h3>Total Recebido</h3>
+                <span class="iconCard"><i class="fas fa-check-circle"></i></span>
+              </div>
+              <h2 id="totalRecebido">R$ 0,00</h2>
+              <p id="recebidoQtd" class="variacao">0 cobranças pagas</p>
+            </div>
+
+            <div class="cardFinanceiro cardAviso">
+              <div class="cardFinaceiroHeader">
+                <h3>Total em Aberto</h3>
+                <span class="iconCard"><i class="fas fa-hourglass-end"></i></span>
+              </div>
+              <h2 id="totalAberto">R$ 0,00</h2>
+              <p id="abertoQtd" class="variacao">0 cobranças pendentes</p>
+            </div>
+
+            <div class="cardFinanceiro cardDespesa">
+              <div class="cardFinaceiroHeader">
+                <h3>Total de Despesas</h3>
+                <span class="iconCard"><i class="fas fa-money-bills"></i></span>
+              </div>
+              <h2 id="totalDespesas">R$ 0,00</h2>
+              <p id="despesasQtd" class="variacao">0 despesas este mês</p>
+            </div>
+
+            <div class="cardFinanceiro cardLucro">
+              <div class="cardFinaceiroHeader">
+                <h3>Lucro Líquido</h3>
+                <span class="iconCard"><i class="fas fa-arrow-trend-up"></i></span>
+              </div>
+              <h2 id="lucroLiquido">R$ 0,00</h2>
+              <p id="lucroVariacao" class="variacao">Resultado do mês</p>
+            </div>
+
+            <div class="cardFinanceiro cardInadimplencia">
+              <div class="cardFinaceiroHeader">
+                <h3>Inadimplentes</h3>
+                <span class="iconCard"><i class="fas fa-triangle-exclamation"></i></span>
+              </div>
+              <h2 id="totalInadimplentes">0</h2>
+              <p id="valorInadimplentes" class="variacao">R$ 0,00 em atraso</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABS DE NAVEGAÇÃO -->
+        <div class="financeiroTabs">
+          <button class="tabBtn active" onclick="mostrarAbaFinanceira('contas-receber')">
+            <i class="fas fa-file-invoice-dollar"></i> Contas a Receber
+          </button>
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('contas-pagar')">
+            <i class="fas fa-money-check-dollar"></i> Contas a Pagar
+          </button>
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('fluxo-caixa')">
+            <i class="fas fa-chart-line"></i> Fluxo de Caixa
+          </button>
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('inadimplencia')">
+            <i class="fas fa-triangle-exclamation"></i> Inadimplência
+          </button>
+        </div>
+
+        <!-- ============================= -->
+        <!-- 1. CONTAS A RECEBER -->
+        <!-- ============================= -->
+        <div id="contas-receber" class="abaFinanceira ativa">
+          <div class="headerAba">
+            <h2>Contas a Receber</h2>
+            <button onclick="abrirModalRecebimento()" class="btnPrimario">
+              <i class="fas fa-plus"></i> Adicionar Cobrança
+            </button>
+          </div>
+
+          <div class="filtrosFinanceiro">
+            <input 
+              type="text" 
+              id="buscaClienteReceb" 
+              placeholder="🔍 Buscar cliente..."
+              onkeyup="filtrarRecebimentos()"
+            >
+            <select id="filtroStatusReceb" onchange="filtrarRecebimentos()">
+              <option value="">Todos os status</option>
+              <option value="Pago">✅ Pago</option>
+              <option value="Pendente">⏳ Pendente</option>
+              <option value="Atrasado">🔴 Atrasado</option>
+            </select>
+          </div>
+
+          <div class="tableContainer">
+            <table class="tabelaFinanceira">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th>Pagamento</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="listaRecebimentos"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ============================= -->
+        <!-- 2. CONTAS A PAGAR -->
+        <!-- ============================= -->
+        <div id="contas-pagar" class="abaFinanceira">
+          <div class="headerAba">
+            <h2>Contas a Pagar</h2>
+            <button onclick="abrirModalDespesa()" class="btnPrimario">
+              <i class="fas fa-plus"></i> Adicionar Despesa
+            </button>
+          </div>
+
+          <div class="filtrosFinanceiro">
+            <input 
+              type="text" 
+              id="buscaDespesa" 
+              placeholder="🔍 Buscar despesa..."
+              onkeyup="filtrarDespesas()"
+            >
+            <select id="filtroCategoriaDespesa" onchange="filtrarDespesas()">
+              <option value="">Todas as categorias</option>
+              <option value="Infraestrutura">🏗️ Infraestrutura</option>
+              <option value="Pessoal">👥 Pessoal</option>
+              <option value="Operacional">⚙️ Operacional</option>
+              <option value="Marketing">📢 Marketing</option>
+              <option value="Outros">📌 Outros</option>
+            </select>
+            <select id="filtroStatusDespesa" onchange="filtrarDespesas()">
+              <option value="">Todos os status</option>
+              <option value="Pago">✅ Pago</option>
+              <option value="Pendente">⏳ Pendente</option>
+            </select>
+          </div>
+
+          <div class="tableContainer">
+            <table class="tabelaFinanceira">
+              <thead>
+                <tr>
+                  <th>Descrição</th>
+                  <th>Categoria</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="listaDespesas"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ============================= -->
+        <!-- 3. FLUXO DE CAIXA -->
+        <!-- ============================= -->
+        <div id="fluxo-caixa" class="abaFinanceira">
+          <h2>Fluxo de Caixa</h2>
+
+          <div class="resumoFluxo">
+            <div class="boxFluxo entrada">
+              <h4><i class="fas fa-arrow-down"></i> Total de Entradas</h4>
+              <h3 id="totalEntradas">R$ 0,00</h3>
+            </div>
+            <div class="boxFluxo saida">
+              <h4><i class="fas fa-arrow-up"></i> Total de Saídas</h4>
+              <h3 id="totalSaidas">R$ 0,00</h3>
+            </div>
+            <div class="boxFluxo saldo">
+              <h4><i class="fas fa-wallet"></i> Saldo Atual</h4>
+              <h3 id="saldoAtual">R$ 0,00</h3>
+            </div>
+          </div>
+
+          <div class="filtrosFinanceiro">
+            <input 
+              type="date" 
+              id="dataInicio" 
+              onchange="atualizarFluxoCaixa()"
+            >
+            <input 
+              type="date" 
+              id="dataFim" 
+              onchange="atualizarFluxoCaixa()"
+            >
+            <button onclick="atualizarFluxoCaixa()" class="btnSecundario">
+              <i class="fas fa-rotate-right"></i> Atualizar
+            </button>
+          </div>
+
+          <div class="tableContainer">
+            <table class="tabelaFinanceira">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Descrição</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody id="listaFluxoCaixa"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ============================= -->
+        <!-- 4. INADIMPLÊNCIA -->
+        <!-- ============================= -->
+        <div id="inadimplencia" class="abaFinanceira">
+          <h2>Análise de Inadimplência</h2>
+
+          <div class="indicadoresInadimplencia">
+            <div class="indicador">
+              <h4><i class="fas fa-user-tie"></i> Clientes Inadimplentes</h4>
+              <h2 id="qntInadimplentes">0</h2>
+            </div>
+            <div class="indicador">
+              <h4><i class="fas fa-coins"></i> Valor Total em Atraso</h4>
+              <h2 id="valorTotalAtraso">R$ 0,00</h2>
+            </div>
+            <div class="indicador">
+              <h4><i class="fas fa-chart-pie"></i> Ticket Médio de Atraso</h4>
+              <h2 id="ticketMedioAtraso">R$ 0,00</h2>
+            </div>
+          </div>
+
+          <div class="tableContainer">
+            <table class="tabelaFinanceira">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Valor em Atraso</th>
+                  <th>Vencimento</th>
+                  <th>Dias em Atraso</th>
+                  <th>Telefone</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="listaInadimplentes"></tbody>
+            </table>
+          </div>
+        </div>
+
       </section>
 
     </main>
 
+  </div>
+
+  <!-- ============================= -->
+  <!-- MODAL - RECEBIMENTO -->
+  <!-- ============================= -->
+  <div id="modalRecebimento" class="modal">
+    <div class="modalContent">
+      <div class="modalHeader">
+        <h2>Adicionar Cobrança</h2>
+        <button onclick="fecharModalRecebimento()" class="btnFechar">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modalBody">
+        <select id="receb_cliente" placeholder="Selecione um cliente">
+          <option value="">-- Selecione um cliente --</option>
+        </select>
+
+        <input 
+          type="number" 
+          id="receb_valor" 
+          placeholder="Valor (R$)"
+          step="0.01"
+        >
+
+        <input 
+          type="date" 
+          id="receb_vencimento"
+        >
+
+        <select id="receb_pagamento">
+          <option value="">Selecione a forma de pagamento</option>
+          <option value="Dinheiro">💵 Dinheiro</option>
+          <option value="PIX">🔵 PIX</option>
+          <option value="Boleto">📋 Boleto</option>
+          <option value="Cartao">💳 Cartão</option>
+          <option value="Transferencia">🏦 Transferência</option>
+        </select>
+
+        <select id="receb_status">
+          <option value="Pendente">⏳ Pendente</option>
+          <option value="Pago">✅ Pago</option>
+        </select>
+
+        <textarea 
+          id="receb_observacao" 
+          placeholder="Observações..."
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="modalFooter">
+        <button onclick="fecharModalRecebimento()" class="btnSecundario">Cancelar</button>
+        <button onclick="salvarRecebimento()" class="btnPrimario">
+          <i class="fas fa-save"></i> Salvar Cobrança
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!-- MODAL - DESPESA -->
+  <!-- ============================= -->
+  <div id="modalDespesa" class="modal">
+    <div class="modalContent">
+      <div class="modalHeader">
+        <h2>Adicionar Despesa</h2>
+        <button onclick="fecharModalDespesa()" class="btnFechar">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modalBody">
+        <input 
+          type="text" 
+          id="desp_descricao" 
+          placeholder="Descrição da despesa"
+        >
+
+        <select id="desp_categoria">
+          <option value="">Selecione a categoria</option>
+          <option value="Infraestrutura">🏗️ Infraestrutura</option>
+          <option value="Pessoal">👥 Pessoal</option>
+          <option value="Operacional">⚙️ Operacional</option>
+          <option value="Marketing">📢 Marketing</option>
+          <option value="Outros">📌 Outros</option>
+        </select>
+
+        <input 
+          type="number" 
+          id="desp_valor" 
+          placeholder="Valor (R$)"
+          step="0.01"
+        >
+
+        <input 
+          type="date" 
+          id="desp_vencimento"
+        >
+
+        <select id="desp_status">
+          <option value="Pendente">⏳ Pendente</option>
+          <option value="Pago">✅ Pago</option>
+        </select>
+
+        <textarea 
+          id="desp_observacao" 
+          placeholder="Observações..."
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="modalFooter">
+        <button onclick="fecharModalDespesa()" class="btnSecundario">Cancelar</button>
+        <button onclick="salvarDespesa()" class="btnPrimario">
+          <i class="fas fa-save"></i> Salvar Despesa
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- FIREBASE -->
