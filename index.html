@@ -19,14 +19,14 @@
   <div class="loginTela" id="loginTela" style="display:flex;">
     <div class="loginBox">
       <img src="./img/logo.png" class="logoSidebar" alt="ControlISP Pro">
-      <h1>ControlISP Pro</h1>
+      <h2>ControLiSP</h2>
       <p class="loginSubtitle">Gestão Inteligente para Provedores de Internet</p>
       <input type="email" id="usuario" placeholder="E-mail">
       <input type="password" id="senha" placeholder="Senha">
       <button onclick="fazerLogin()">
         <i class="fas fa-sign-in-alt"></i> Entrar
       </button>
-      <p class="loginFooter">&copy; 2024 ControlISP. Todos os direitos reservados.</p>
+      <p class="loginFooter">&copy; 2026 ControlISP. Todos os direitos reservados.</p>
     </div>
   </div>
 
@@ -36,9 +36,9 @@
     <aside class="sidebar">
       <div class="sidebarTop">
         <img src="./img/logo.png" class="logoLogin" alt="ControlISP Pro">
-        <h2>ControlISP Pro</h2>
+        <h4>ControlISP</h4>
       </div>
-      
+
       <nav class="sidebarNav">
         <button class="navBtn" onclick="mostrarSecao('dashboard')">
           <i class="fas fa-chart-pie"></i>
@@ -106,6 +106,34 @@
             </div>
             <h3>Ticket Médio</h3>
             <h2 id="ticketMedio">R$ 0</h2>
+          </div>
+          <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-money-bill-wave"></i>
+            </div>
+            <h3>Receita Prevista</h3>
+            <h2 id="receitaPrevista">R$ 0</h2>
+          </div>
+          <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-check-circle"></i>
+            </div>
+            <h3>Receita Recebida (Mês)</h3>
+            <h2 id="receitaRecebidaMes">R$ 0</h2>
+          </div>
+          <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-clock"></i>
+            </div>
+            <h3>Receita Pendente</h3>
+            <h2 id="receitaPendente">R$ 0</h2>
+          </div>
+          <div class="card">
+            <div class="cardIcon">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3>Receita em Atraso</h3>
+            <h2 id="receitaAtraso">R$ 0</h2>
           </div>
         </div>
       </section>
@@ -278,9 +306,14 @@
         <div id="contas-receber" class="abaFinanceira ativa" style="display:block;">
           <div class="headerAba">
             <h2>Contas a Receber</h2>
-            <button onclick="abrirModalRecebimento()" class="btnPrimario">
-              <i class="fas fa-plus"></i> Adicionar Cobrança
-            </button>
+            <div class="headerAbaButtons">
+              <button onclick="abrirModalRecebimento()" class="btnPrimario">
+                <i class="fas fa-plus"></i> Adicionar Cobrança
+              </button>
+              <button onclick="gerarMensalidadesNovoMes()" class="btnSecundario">
+                <i class="fas fa-sync"></i> Gerar Mensalidades do Mês
+              </button>
+            </div>
           </div>
 
           <div class="filtrosFinanceiro">

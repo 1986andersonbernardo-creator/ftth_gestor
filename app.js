@@ -4,6 +4,7 @@
 
 let clienteEditando = null;
 let planoEditando = null;
+let mensalidadeEditando = null;
 
 // ===========================
 // LOGIN
@@ -30,6 +31,7 @@ function fazerLogin() {
       carregarRecebimentos();
       carregarDespesas();
       atualizarFluxoCaixa();
+      verificarGeracaoMensalidades();
     })
     .catch((erro) => {
       alert("Erro de login: " + erro.message);
@@ -88,10 +90,15 @@ function salvarCliente() {
 
   db.collection("clientes")
     .add(cliente)
-    .then(() => {
+    .then((docRef) => {
       alert("Cliente cadastrado com sucesso!");
       limparFormulario();
       carregarFinanceiro();
+      
+      // Gerar primeira mensalidade automaticamente se cliente estiver Ativo
+      if (status === "Ativo" && valor > 0 && vencimento) {
+        gerarMensalidadeInicial(docRef.id, nome, plano, valor, vencimento);
+      }
     })
     .catch((erro) => {
       alert("Erro ao salvar: " + erro.message);
@@ -142,6 +149,7 @@ function carregarClientes() {
       
       // Atualizar faturamento e ticket médio
       document.getElementById("faturamentoMensal").innerText = "R$ " + faturamentoTotal.toFixed(2);
+      document.getElementById("receitaPrevista").innerText = "R$ " + faturamentoTotal.toFixed(2);
       document.getElementById("ticketMedio").innerText = "R$ " + 
         (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
     }, (erro) => {
@@ -396,6 +404,214 @@ function preencherValorPlano() {
 }
 
 // ===========================
+// MENSALIDADES RECURRENTES
+// ===========================
+
+function gerarMensalidadeInicial(clienteId, clienteNome, plano, valor, vencimento) {
+  const dataAtual = new Date();
+  const competencia = formatarCompetencia(dataAtual);
+  const dataVencimento = calcularDataVencimento(vencimento, dataAtual);
+
+  // Verificar se já existe mensalidade para este cliente nesta competência
+  db.collection("mensalidades")
+    .where("clienteId", "==", clienteId)
+    .where("competencia", "==", competencia)
+    .get()
+    .then((snapshot) => {
+      if (snapshot.empty) {
+        // Não existe, criar nova mensalidade
+        const mensalidade = {
+          clienteId,
+          clienteNome,
+          plano,
+          valor,
+          vencimento: dataVencimento,
+          competencia,
+          status: "Em Aberto",
+          dataGeracao: new Date(),
+          tipo: "Recorrente"
+        };
+
+        db.collection("mensalidades")
+          .add(mensalidade)
+          .then(() => {
+            console.log("Primeira mensalidade gerada automaticamente para cliente:", clienteNome);
+          })
+          .catch((erro) => {
+            console.error("Erro ao gerar mensalidade inicial:", erro);
+          });
+      }
+    })
+    .catch((erro) => {
+      console.error("Erro ao verificar mensalidade existente:", erro);
+    });
+}
+
+function gerarMensalidadesNovoMes() {
+  const dataAtual = new Date();
+  const competencia = formatarCompetencia(dataAtual);
+
+  // Buscar todos os clientes ativos
+  db.collection("clientes")
+    .where("status", "==", "Ativo")
+    .get()
+    .then((snapshot) => {
+      snapshot.forEach((clienteDoc) => {
+        const cliente = clienteDoc.data();
+        const clienteId = clienteDoc.id;
+
+        // Verificar se já existe mensalidade para este cliente nesta competência
+        db.collection("mensalidades")
+          .where("clienteId", "==", clienteId)
+          .where("competencia", "==", competencia)
+          .get()
+          .then((mensalidadeSnapshot) => {
+            if (mensalidadeSnapshot.empty && cliente.valor > 0 && cliente.vencimento) {
+              // Não existe, criar nova mensalidade
+              const dataVencimento = calcularDataVencimento(cliente.vencimento, dataAtual);
+              
+              const mensalidade = {
+                clienteId,
+                clienteNome: cliente.nome,
+                plano: cliente.plano,
+                valor: cliente.valor,
+                vencimento: dataVencimento,
+                competencia,
+                status: "Em Aberto",
+                dataGeracao: new Date(),
+                tipo: "Recorrente"
+              };
+
+              db.collection("mensalidades")
+                .add(mensalidade)
+                .then(() => {
+                  console.log("Mensalidade gerada para cliente:", cliente.nome);
+                })
+                .catch((erro) => {
+                  console.error("Erro ao gerar mensalidade:", erro);
+                });
+            }
+          })
+          .catch((erro) => {
+            console.error("Erro ao verificar mensalidade existente:", erro);
+          });
+      });
+    })
+    .catch((erro) => {
+      console.error("Erro ao buscar clientes ativos:", erro);
+    });
+}
+
+function formatarCompetencia(data) {
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const ano = data.getFullYear();
+  return `${mes}/${ano}`;
+}
+
+function calcularDataVencimento(diaVencimento, dataReferencia) {
+  const data = new Date(dataReferencia);
+  data.setDate(parseInt(diaVencimento));
+  
+  // Formatar para YYYY-MM-DD
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  
+  return `${ano}-${mes}-${dia}`;
+}
+
+function verificarGeracaoMensalidades() {
+  const dataAtual = new Date();
+  const dia = dataAtual.getDate();
+  
+  // Gerar mensalidades no dia 1 de cada mês
+  if (dia === 1) {
+    gerarMensalidadesNovoMes();
+  }
+}
+
+function marcarMensalidadePaga(mensalidadeId) {
+  db.collection("mensalidades")
+    .doc(mensalidadeId)
+    .update({
+      status: "Pago",
+      dataPagamento: new Date()
+    })
+    .then(() => {
+      alert("Mensalidade marcada como paga!");
+      carregarMensalidades();
+      carregarFinanceiro();
+      atualizarFluxoCaixa();
+    })
+    .catch((erro) => {
+      alert("Erro: " + erro.message);
+    });
+}
+
+function marcarMensalidadeAtrasada(mensalidadeId) {
+  db.collection("mensalidades")
+    .doc(mensalidadeId)
+    .update({
+      status: "Atrasado"
+    })
+    .then(() => {
+      alert("Mensalidade marcada como atrasada!");
+      carregarMensalidades();
+      carregarFinanceiro();
+    })
+    .catch((erro) => {
+      alert("Erro: " + erro.message);
+    });
+}
+
+function excluirMensalidade(mensalidadeId) {
+  if (!confirm("Deseja excluir esta mensalidade?")) return;
+
+  db.collection("mensalidades")
+    .doc(mensalidadeId)
+    .delete()
+    .then(() => {
+      alert("Mensalidade removida!");
+      carregarMensalidades();
+      carregarFinanceiro();
+    })
+    .catch((erro) => {
+      alert("Erro: " + erro.message);
+    });
+}
+
+function carregarMensalidades() {
+  db.collection("mensalidades")
+    .orderBy("vencimento", "desc")
+    .onSnapshot((snapshot) => {
+      const tabela = document.getElementById("listaRecebimentos");
+      tabela.innerHTML = "";
+
+      snapshot.forEach((doc) => {
+        const mens = doc.data();
+        const statusClass = mens.status === "Pago" ? "status-pago" : mens.status === "Atrasado" ? "status-atrasado" : "status-pendente";
+        
+        tabela.innerHTML += `
+          <tr>
+            <td>${mens.clienteNome || ""}</td>
+            <td>R$ ${mens.valor.toFixed(2)}</td>
+            <td>${mens.vencimento}</td>
+            <td><span class="${statusClass}">${mens.status}</span></td>
+            <td>${mens.tipo || "Recorrente"}</td>
+            <td>
+              ${mens.status !== "Pago" ? `<button onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i></button>` : ""}
+              ${mens.status === "Em Aberto" ? `<button onclick="marcarMensalidadeAtrasada('${doc.id}')"><i class="fas fa-exclamation"></i></button>` : ""}
+              <button onclick="excluirMensalidade('${doc.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      });
+    }, (erro) => {
+      console.error("Erro ao carregar mensalidades:", erro);
+    });
+}
+
+// ===========================
 // FINANCEIRO - CONTAS A RECEBER
 // ===========================
 
@@ -464,12 +680,42 @@ function salvarRecebimento() {
 }
 
 function carregarRecebimentos() {
+  const tabela = document.getElementById("listaRecebimentos");
+  tabela.innerHTML = "";
+
+  // Carregar mensalidades recorrentes
+  db.collection("mensalidades")
+    .orderBy("vencimento", "desc")
+    .onSnapshot((mensalidadeSnapshot) => {
+      let htmlMensalidades = "";
+      mensalidadeSnapshot.forEach((doc) => {
+        const mens = doc.data();
+        const statusClass = mens.status === "Pago" ? "status-pago" : mens.status === "Atrasado" ? "status-atrasado" : "status-pendente";
+        
+        htmlMensalidades += `
+          <tr>
+            <td>${mens.clienteNome || ""}</td>
+            <td>R$ ${mens.valor.toFixed(2)}</td>
+            <td>${mens.vencimento}</td>
+            <td><span class="${statusClass}">${mens.status}</span></td>
+            <td>${mens.tipo || "Recorrente"}</td>
+            <td>
+              ${mens.status !== "Pago" ? `<button onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i></button>` : ""}
+              ${mens.status === "Em Aberto" ? `<button onclick="marcarMensalidadeAtrasada('${doc.id}')"><i class="fas fa-exclamation"></i></button>` : ""}
+              <button onclick="excluirMensalidade('${doc.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      });
+      tabela.innerHTML = htmlMensalidades;
+    }, (erro) => {
+      console.error("Erro ao carregar mensalidades:", erro);
+    });
+
+  // Carregar recebimentos manuais
   db.collection("recebimentos")
     .orderBy("vencimento", "desc")
     .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaRecebimentos");
-      tabela.innerHTML = "";
-
       snapshot.forEach((doc) => {
         const receb = doc.data();
         db.collection("clientes")
@@ -676,54 +922,78 @@ function atualizarFluxoCaixa() {
     .onSnapshot((recebSnapshot) => {
       db.collection("despesas")
         .onSnapshot((despSnapshot) => {
-          let totalEntradas = 0;
-          let totalSaidas = 0;
-          let fluxoHTML = "";
+          db.collection("mensalidades")
+            .onSnapshot((mensalidadeSnapshot) => {
+              let totalEntradas = 0;
+              let totalSaidas = 0;
+              let fluxoHTML = "";
 
-          // Processar recebimentos
-          recebSnapshot.forEach((doc) => {
-            const receb = doc.data();
-            if (receb.status === "Pago") {
-              const data = receb.vencimento;
-              if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-                totalEntradas += receb.valor;
-                fluxoHTML += `
-                  <tr>
-                    <td>${data}</td>
-                    <td>Entrada</td>
-                    <td>Recebimento</td>
-                    <td class="valor-entrada">+R$ ${receb.valor.toFixed(2)}</td>
-                  </tr>
-                `;
-              }
-            }
-          });
+              // Processar recebimentos manuais
+              recebSnapshot.forEach((doc) => {
+                const receb = doc.data();
+                if (receb.status === "Pago") {
+                  const data = receb.vencimento;
+                  if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
+                    totalEntradas += receb.valor;
+                    fluxoHTML += `
+                      <tr>
+                        <td>${data}</td>
+                        <td>Entrada</td>
+                        <td>Recebimento Manual</td>
+                        <td class="valor-entrada">+R$ ${receb.valor.toFixed(2)}</td>
+                      </tr>
+                    `;
+                  }
+                }
+              });
 
-          // Processar despesas
-          despSnapshot.forEach((doc) => {
-            const desp = doc.data();
-            if (desp.status === "Pago") {
-              const data = desp.vencimento;
-              if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-                totalSaidas += desp.valor;
-                fluxoHTML += `
-                  <tr>
-                    <td>${data}</td>
-                    <td>Saída</td>
-                    <td>${desp.descricao}</td>
-                    <td class="valor-saida">-R$ ${desp.valor.toFixed(2)}</td>
-                  </tr>
-                `;
-              }
-            }
-          });
+              // Processar mensalidades pagas
+              mensalidadeSnapshot.forEach((doc) => {
+                const mens = doc.data();
+                if (mens.status === "Pago") {
+                  const data = mens.dataPagamento || mens.vencimento;
+                  if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
+                    totalEntradas += mens.valor;
+                    fluxoHTML += `
+                      <tr>
+                        <td>${data}</td>
+                        <td>Entrada</td>
+                        <td>Mensalidade - ${mens.clienteNome}</td>
+                        <td class="valor-entrada">+R$ ${mens.valor.toFixed(2)}</td>
+                      </tr>
+                    `;
+                  }
+                }
+              });
 
-          const saldo = totalEntradas - totalSaidas;
+              // Processar despesas
+              despSnapshot.forEach((doc) => {
+                const desp = doc.data();
+                if (desp.status === "Pago") {
+                  const data = desp.vencimento;
+                  if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
+                    totalSaidas += desp.valor;
+                    fluxoHTML += `
+                      <tr>
+                        <td>${data}</td>
+                        <td>Saída</td>
+                        <td>${desp.descricao}</td>
+                        <td class="valor-saida">-R$ ${desp.valor.toFixed(2)}</td>
+                      </tr>
+                    `;
+                  }
+                }
+              });
 
-          document.getElementById("totalEntradas").innerText = "R$ " + totalEntradas.toFixed(2);
-          document.getElementById("totalSaidas").innerText = "R$ " + totalSaidas.toFixed(2);
-          document.getElementById("saldoAtual").innerText = "R$ " + saldo.toFixed(2);
-          document.getElementById("listaFluxoCaixa").innerHTML = fluxoHTML;
+              const saldo = totalEntradas - totalSaidas;
+
+              document.getElementById("totalEntradas").innerText = "R$ " + totalEntradas.toFixed(2);
+              document.getElementById("totalSaidas").innerText = "R$ " + totalSaidas.toFixed(2);
+              document.getElementById("saldoAtual").innerText = "R$ " + saldo.toFixed(2);
+              document.getElementById("listaFluxoCaixa").innerHTML = fluxoHTML;
+            }, (erro) => {
+              console.error("Erro ao atualizar fluxo de caixa com mensalidades:", erro);
+            });
         }, (erro) => {
           console.error("Erro ao atualizar fluxo de caixa:", erro);
         });
@@ -743,40 +1013,95 @@ function carregarFinanceiro() {
         .onSnapshot((recebSnapshot) => {
           db.collection("despesas")
             .onSnapshot((despSnapshot) => {
-              let faturamentoMes = 0;
-              let totalRecebido = 0;
-              let totalAberto = 0;
-              let totalDespesas = 0;
-              let clientesInadimplentes = 0;
-              let valorInadimplente = 0;
-              let recebidoQtd = 0;
-              let abertoQtd = 0;
-              let despesasQtd = 0;
+              db.collection("mensalidades")
+                .onSnapshot((mensalidadeSnapshot) => {
+                  let faturamentoMes = 0;
+                  let totalRecebido = 0;
+                  let totalAberto = 0;
+                  let totalVencido = 0;
+                  let totalDespesas = 0;
+                  let clientesInadimplentes = 0;
+                  let valorInadimplente = 0;
+                  let recebidoQtd = 0;
+                  let abertoQtd = 0;
+                  let vencidoQtd = 0;
+                  let despesasQtd = 0;
+                  let receitaPrevista = 0;
+                  let receitaRecebidaMes = 0;
+                  let receitaPendente = 0;
+                  let receitaAtraso = 0;
 
-              // Calcular faturamento mensal (clientes ativos)
-              clienteSnapshot.forEach((doc) => {
-                const cliente = doc.data();
-                if (cliente.status === "Ativo") {
-                  faturamentoMes += Number(cliente.valor) || 0;
-                }
-                if (cliente.status === "Inadimplente") {
-                  clientesInadimplentes++;
-                }
-              });
+                  const dataAtual = new Date();
+                  const mesAtual = dataAtual.getMonth();
+                  const anoAtual = dataAtual.getFullYear();
 
-              // Processar recebimentos
-              recebSnapshot.forEach((doc) => {
-                const receb = doc.data();
-                if (receb.status === "Pago") {
-                  totalRecebido += receb.valor;
-                  recebidoQtd++;
-                } else if (receb.status === "Pendente") {
-                  totalAberto += receb.valor;
-                  abertoQtd++;
-                } else if (receb.status === "Atrasado") {
-                  valorInadimplente += receb.valor;
-                }
-              });
+                  // Calcular faturamento mensal (clientes ativos)
+                  clienteSnapshot.forEach((doc) => {
+                    const cliente = doc.data();
+                    if (cliente.status === "Ativo") {
+                      faturamentoMes += Number(cliente.valor) || 0;
+                      receitaPrevista += Number(cliente.valor) || 0;
+                    }
+                    if (cliente.status === "Inadimplente") {
+                      clientesInadimplentes++;
+                    }
+                  });
+
+                  // Processar recebimentos manuais
+                  recebSnapshot.forEach((doc) => {
+                    const receb = doc.data();
+                    if (receb.status === "Pago") {
+                      totalRecebido += receb.valor;
+                      recebidoQtd++;
+                      
+                      // Verificar se é do mês atual
+                      const dataPagamento = new Date(receb.vencimento);
+                      if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
+                        receitaRecebidaMes += receb.valor;
+                      }
+                    } else if (receb.status === "Pendente") {
+                      totalAberto += receb.valor;
+                      abertoQtd++;
+                      receitaPendente += receb.valor;
+                    } else if (receb.status === "Atrasado") {
+                      totalVencido += receb.valor;
+                      valorInadimplente += receb.valor;
+                      vencidoQtd++;
+                      receitaAtraso += receb.valor;
+                    }
+                  });
+
+                  // Processar mensalidades recorrentes
+                  mensalidadeSnapshot.forEach((doc) => {
+                    const mens = doc.data();
+                    if (mens.status === "Pago") {
+                      totalRecebido += mens.valor;
+                      recebidoQtd++;
+                      
+                      // Verificar se é do mês atual
+                      const dataPagamento = new Date(mens.dataPagamento || mens.vencimento);
+                      if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
+                        receitaRecebidaMes += mens.valor;
+                      }
+                    } else if (mens.status === "Em Aberto") {
+                      totalAberto += mens.valor;
+                      abertoQtd++;
+                      receitaPendente += mens.valor;
+                      
+                      // Verificar se está vencido
+                      const dataVencimento = new Date(mens.vencimento);
+                      if (dataVencimento < dataAtual) {
+                        totalVencido += mens.valor;
+                        vencidoQtd++;
+                        receitaAtraso += mens.valor;
+                      }
+                    } else if (mens.status === "Atrasado") {
+                      totalVencido += mens.valor;
+                      valorInadimplente += mens.valor;
+                      vencidoQtd++;
+                      receitaAtraso += mens.valor;
+                    }
+                  });
 
               // Processar despesas
               despSnapshot.forEach((doc) => {
@@ -790,7 +1115,7 @@ function carregarFinanceiro() {
 
               const lucroLiquido = totalRecebido - totalDespesas;
 
-              // Atualizar elementos
+              // Atualizar elementos do Dashboard Financeiro
               document.getElementById("faturamentoMes").innerText = "R$ " + faturamentoMes.toFixed(2);
               document.getElementById("totalRecebido").innerText = "R$ " + totalRecebido.toFixed(2);
               document.getElementById("totalAberto").innerText = "R$ " + totalAberto.toFixed(2);
@@ -802,15 +1127,23 @@ function carregarFinanceiro() {
               document.getElementById("abertoQtd").innerText = abertoQtd + " cobranças pendentes";
               document.getElementById("despesasQtd").innerText = despesasQtd + " despesas este mês";
 
+              // Atualizar novos elementos do Dashboard Principal
+              document.getElementById("receitaRecebidaMes").innerText = "R$ " + receitaRecebidaMes.toFixed(2);
+              document.getElementById("receitaPendente").innerText = "R$ " + receitaPendente.toFixed(2);
+              document.getElementById("receitaAtraso").innerText = "R$ " + receitaAtraso.toFixed(2);
+
               carregarInadimplentes();
             }, (erro) => {
-              console.error("Erro ao carregar financeiro:", erro);
+              console.error("Erro ao carregar mensalidades:", erro);
             });
+          }, (erro) => {
+            console.error("Erro ao carregar despesas:", erro);
+          });
         }, (erro) => {
-          console.error("Erro ao carregar financeiro:", erro);
+          console.error("Erro ao carregar recebimentos:", erro);
         });
     }, (erro) => {
-      console.error("Erro ao carregar financeiro:", erro);
+      console.error("Erro ao carregar clientes:", erro);
     });
 }
 
@@ -819,19 +1152,60 @@ function carregarFinanceiro() {
 // ===========================
 
 function carregarInadimplentes() {
+  const tabela = document.getElementById("listaInadimplentes");
+  tabela.innerHTML = "";
+
+  let totalInadimplentes = 0;
+  let valorTotal = 0;
+  const clientesUnicos = new Set();
+
+  // Carregar mensalidades atrasadas
+  db.collection("mensalidades")
+    .where("status", "==", "Atrasado")
+    .onSnapshot((mensalidadeSnapshot) => {
+      mensalidadeSnapshot.forEach((doc) => {
+        const mens = doc.data();
+        totalInadimplentes++;
+        valorTotal += mens.valor;
+        clientesUnicos.add(mens.clienteId);
+
+        const dataAtrasada = new Date(mens.vencimento);
+        const dataHoje = new Date();
+        const diasAtraso = Math.floor((dataHoje - dataAtrasada) / (1000 * 60 * 60 * 24));
+
+        tabela.innerHTML += `
+          <tr>
+            <td>${mens.clienteNome}</td>
+            <td>R$ ${mens.valor.toFixed(2)}</td>
+            <td>${mens.vencimento}</td>
+            <td>${diasAtraso} dias</td>
+            <td>Mensalidade</td>
+            <td>
+              <button onclick="marcarMensalidadePaga('${doc.id}')">
+                <i class="fas fa-check"></i> Marcar Pago
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("qntInadimplentes").innerText = clientesUnicos.size;
+      document.getElementById("valorTotalAtraso").innerText = "R$ " + valorTotal.toFixed(2);
+      document.getElementById("ticketMedioAtraso").innerText = "R$ " +
+        (totalInadimplentes > 0 ? (valorTotal / totalInadimplentes).toFixed(2) : "0.00");
+    }, (erro) => {
+      console.error("Erro ao carregar mensalidades atrasadas:", erro);
+    });
+
+  // Carregar recebimentos manuais atrasados
   db.collection("recebimentos")
     .where("status", "==", "Atrasado")
     .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaInadimplentes");
-      tabela.innerHTML = "";
-
-      let totalInadimplentes = 0;
-      let valorTotal = 0;
-
       snapshot.forEach((doc) => {
         const receb = doc.data();
         totalInadimplentes++;
         valorTotal += receb.valor;
+        clientesUnicos.add(receb.clienteId);
 
         db.collection("clientes")
           .doc(receb.clienteId)
@@ -859,7 +1233,7 @@ function carregarInadimplentes() {
           });
       });
 
-      document.getElementById("qntInadimplentes").innerText = totalInadimplentes;
+      document.getElementById("qntInadimplentes").innerText = clientesUnicos.size;
       document.getElementById("valorTotalAtraso").innerText = "R$ " + valorTotal.toFixed(2);
       document.getElementById("ticketMedioAtraso").innerText = "R$ " +
         (totalInadimplentes > 0 ? (valorTotal / totalInadimplentes).toFixed(2) : "0.00");
@@ -932,6 +1306,7 @@ auth.onAuthStateChanged((user) => {
     carregarRecebimentos();
     carregarDespesas();
     atualizarFluxoCaixa();
+    verificarGeracaoMensalidades();
   } else {
     document.getElementById("loginTela").style.display = "flex";
     document.getElementById("sistema").style.display = "none";
