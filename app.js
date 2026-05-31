@@ -1307,8 +1307,842 @@ auth.onAuthStateChanged((user) => {
     carregarDespesas();
     atualizarFluxoCaixa();
     verificarGeracaoMensalidades();
+    carregarClientesWhatsApp();
+    carregarConfiguracoesWhatsApp();
+    carregarHistoricoWhatsApp();
   } else {
     document.getElementById("loginTela").style.display = "flex";
     document.getElementById("sistema").style.display = "none";
+  }
+});
+
+// ===========================
+// WHATSAPP MODULE
+// ===========================
+
+// Global variables for WhatsApp
+let clientesWhatsApp = [];
+let clientesSelecionadosWhatsApp = new Set();
+let configuracoesWhatsApp = {
+  templates: {},
+  nomeEmpresa: "Sua Empresa",
+  apiProvider: "",
+  apiKey: "",
+  apiUrl: ""
+};
+
+// ===========================
+// WHATSAPP TAB NAVIGATION
+// ===========================
+
+function mostrarAbaWhatsApp(aba) {
+  document.querySelectorAll(".abaWhatsApp").forEach(abaw => {
+    abaw.style.display = "none";
+    abaw.classList.remove("ativa");
+  });
+  
+  const abaElement = document.getElementById("whatsapp-" + aba);
+  abaElement.style.display = "block";
+  abaElement.classList.add("ativa");
+
+  document.querySelectorAll(".whatsappTabBtn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  event.target.classList.add("active");
+
+  if (aba === "cobrancas") {
+    identificarCobrancasPendentes();
+  }
+}
+
+// ===========================
+// WHATSAPP CLIENT LOADING
+// ===========================
+
+function carregarClientesWhatsApp() {
+  db.collection("clientes")
+    .orderBy("nome")
+    .onSnapshot((snapshot) => {
+      clientesWhatsApp = [];
+      const tabela = document.getElementById("listaClientesWhatsApp");
+      const selectIndividual = document.getElementById("wa_cliente_individual");
+      
+      tabela.innerHTML = "";
+      selectIndividual.innerHTML = '<option value="">Selecione um cliente</option>';
+
+      snapshot.forEach((doc) => {
+        const cliente = doc.data();
+        cliente.id = doc.id;
+        clientesWhatsApp.push(cliente);
+
+        // Add to select
+        const option = document.createElement("option");
+        option.value = doc.id;
+        option.textContent = cliente.nome;
+        selectIndividual.appendChild(option);
+
+        // Add to table
+        tabela.innerHTML += `
+          <tr data-cliente-id="${doc.id}">
+            <td><input type="checkbox" class="wa-cliente-checkbox" value="${doc.id}"></td>
+            <td>${cliente.nome || ""}</td>
+            <td>${cliente.telefone || ""}</td>
+            <td>${cliente.status || ""}</td>
+            <td>${cliente.plano || ""}</td>
+            <td>${cliente.vencimento || ""}</td>
+            <td>R$ ${Number(cliente.valor || 0).toFixed(2)}</td>
+          </tr>
+        `;
+      });
+
+      filtrarClientesWhatsApp();
+    }, (erro) => {
+      console.error("Erro ao carregar clientes WhatsApp:", erro);
+    });
+}
+
+// ===========================
+// WHATSAPP FILTERS
+// ===========================
+
+function filtrarClientesWhatsApp() {
+  const filtroStatus = document.getElementById("wa_filtro_status").value;
+  const filtroVencimento = document.getElementById("wa_filtro_vencimento").value;
+  const filtroNome = document.getElementById("wa_filtro_nome").value.toLowerCase();
+  
+  const linhas = document.querySelectorAll("#listaClientesWhatsApp tr");
+  
+  linhas.forEach((linha) => {
+    const clienteId = linha.getAttribute("data-cliente-id");
+    const cliente = clientesWhatsApp.find(c => c.id === clienteId);
+    
+    if (!cliente) return;
+
+    let mostrar = true;
+
+    // Filter by status
+    if (filtroStatus && cliente.status !== filtroStatus) {
+      mostrar = false;
+    }
+
+    // Filter by name
+    if (filtroNome && !cliente.nome.toLowerCase().includes(filtroNome)) {
+      mostrar = false;
+    }
+
+    // Filter by due date
+    if (filtroVencimento) {
+      const dataAtual = new Date();
+      const diaVencimento = parseInt(cliente.vencimento);
+      
+      if (filtroVencimento === "hoje") {
+        if (dataAtual.getDate() !== diaVencimento) {
+          mostrar = false;
+        }
+      } else if (filtroVencimento === "3dias") {
+        const diasAteVencimento = diaVencimento - dataAtual.getDate();
+        if (diasAteVencimento < 0 || diasAteVencimento > 3) {
+          mostrar = false;
+        }
+      } else if (filtroVencimento === "7dias") {
+        const diasAteVencimento = diaVencimento - dataAtual.getDate();
+        if (diasAteVencimento < 0 || diasAteVencimento > 7) {
+          mostrar = false;
+        }
+      } else if (filtroVencimento === "atrasado") {
+        const diasAteVencimento = diaVencimento - dataAtual.getDate();
+        if (diasAteVencimento >= 0) {
+          mostrar = false;
+        }
+      }
+    }
+
+    linha.style.display = mostrar ? "" : "none";
+  });
+}
+
+// ===========================
+// WHATSAPP SELECTION
+// ===========================
+
+function toggleSelectAllWhatsApp() {
+  const selectAll = document.getElementById("wa_select_all").checked;
+  const checkboxes = document.querySelectorAll(".wa-cliente-checkbox");
+  
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = selectAll;
+    if (selectAll) {
+      clientesSelecionadosWhatsApp.add(checkbox.value);
+    } else {
+      clientesSelecionadosWhatsApp.delete(checkbox.value);
+    }
+  });
+}
+
+function selecionarTodosWhatsApp() {
+  const checkboxes = document.querySelectorAll(".wa-cliente-checkbox");
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = true;
+    clientesSelecionadosWhatsApp.add(checkbox.value);
+  });
+  document.getElementById("wa_select_all").checked = true;
+}
+
+// ===========================
+// WHATSAPP TEMPLATES
+// ===========================
+
+function carregarTemplate(tipo) {
+  const templateId = "wa_template_" + tipo;
+  const textarea = document.getElementById(templateId);
+  
+  if (textarea && configuracoesWhatsApp.templates[tipo]) {
+    textarea.value = configuracoesWhatsApp.templates[tipo];
+  }
+}
+
+function salvarTemplate(tipo) {
+  const templateId = "wa_template_" + tipo;
+  const textarea = document.getElementById(templateId);
+  
+  if (textarea) {
+    configuracoesWhatsApp.templates[tipo] = textarea.value;
+    
+    db.collection("configuracoes")
+      .doc("whatsapp")
+      .set({
+        templates: configuracoesWhatsApp.templates,
+        updatedAt: new Date()
+      }, { merge: true })
+      .then(() => {
+        alert("Modelo salvo com sucesso!");
+      })
+      .catch((erro) => {
+        alert("Erro ao salvar modelo: " + erro.message);
+      });
+  }
+}
+
+function salvarNomeEmpresa() {
+  const nomeEmpresa = document.getElementById("wa_nome_empresa").value;
+  configuracoesWhatsApp.nomeEmpresa = nomeEmpresa;
+  
+  db.collection("configuracoes")
+    .doc("whatsapp")
+    .set({
+      nomeEmpresa: nomeEmpresa,
+      updatedAt: new Date()
+    }, { merge: true })
+    .then(() => {
+      alert("Nome da empresa salvo com sucesso!");
+    })
+    .catch((erro) => {
+      alert("Erro ao salvar nome: " + erro.message);
+    });
+}
+
+function salvarConfiguracaoAPI() {
+  const apiProvider = document.getElementById("wa_api_provider").value;
+  const apiKey = document.getElementById("wa_api_key").value;
+  const apiUrl = document.getElementById("wa_api_url").value;
+  
+  configuracoesWhatsApp.apiProvider = apiProvider;
+  configuracoesWhatsApp.apiKey = apiKey;
+  configuracoesWhatsApp.apiUrl = apiUrl;
+  
+  db.collection("configuracoes")
+    .doc("whatsapp")
+    .set({
+      apiProvider: apiProvider,
+      apiKey: apiKey,
+      apiUrl: apiUrl,
+      updatedAt: new Date()
+    }, { merge: true })
+    .then(() => {
+      alert("Configuração de API salva com sucesso!");
+    })
+    .catch((erro) => {
+      alert("Erro ao salvar configuração: " + erro.message);
+    });
+}
+
+// ===========================
+// WHATSAPP MESSAGE VARIABLES
+// ===========================
+
+function substituirVariaveis(mensagem, cliente, valor, vencimento) {
+  let mensagemProcessada = mensagem;
+  
+  mensagemProcessada = mensagemProcessada.replace(/{nome_cliente}/g, cliente.nome || "");
+  mensagemProcessada = mensagemProcessada.replace(/{valor}/g, "R$ " + Number(valor || 0).toFixed(2));
+  mensagemProcessada = mensagemProcessada.replace(/{vencimento}/g, vencimento || "");
+  mensagemProcessada = mensagemProcessada.replace(/{plano}/g, cliente.plano || "");
+  mensagemProcessada = mensagemProcessada.replace(/{empresa}/g, configuracoesWhatsApp.nomeEmpresa || "Sua Empresa");
+  mensagemProcessada = mensagemProcessada.replace(/{telefone}/g, cliente.telefone || "");
+  
+  return mensagemProcessada;
+}
+
+function carregarTemplateNaTextarea(tipo, textareaId) {
+  let template = "";
+  
+  if (tipo === "aviso_vencimento" && configuracoesWhatsApp.templates.aviso_vencimento) {
+    template = configuracoesWhatsApp.templates.aviso_vencimento;
+  } else if (tipo === "cobranca_vencimento" && configuracoesWhatsApp.templates.cobranca_vencimento) {
+    template = configuracoesWhatsApp.templates.cobranca_vencimento;
+  } else if (tipo === "cobranca_atraso" && configuracoesWhatsApp.templates.cobranca_atraso) {
+    template = configuracoesWhatsApp.templates.cobranca_atraso;
+  } else if (tipo === "cobranca_amigavel" && configuracoesWhatsApp.templates.cobranca_amigavel) {
+    template = configuracoesWhatsApp.templates.cobranca_amigavel;
+  }
+  
+  if (template) {
+    document.getElementById(textareaId).value = template;
+  }
+}
+
+// ===========================
+// WHATSAPP INDIVIDUAL MESSAGE
+// ===========================
+
+function enviarMensagemIndividual() {
+  const clienteId = document.getElementById("wa_cliente_individual").value;
+  const templateTipo = document.getElementById("wa_template_individual").value;
+  const mensagemCustomizada = document.getElementById("wa_mensagem_individual").value;
+  
+  if (!clienteId) {
+    alert("Selecione um cliente!");
+    return;
+  }
+  
+  const cliente = clientesWhatsApp.find(c => c.id === clienteId);
+  if (!cliente) {
+    alert("Cliente não encontrado!");
+    return;
+  }
+  
+  if (!cliente.telefone) {
+    alert("Cliente não possui telefone cadastrado!");
+    return;
+  }
+  
+  let mensagem = "";
+  let tipoMensagem = templateTipo === "personalizado" ? "personalizado" : templateTipo;
+  
+  if (templateTipo === "personalizado") {
+    mensagem = mensagemCustomizada;
+  } else {
+    const template = configuracoesWhatsApp.templates[templateTipo] || "";
+    const vencimento = formatarDataVencimento(cliente.vencimento);
+    mensagem = substituirVariaveis(template, cliente, cliente.valor, vencimento);
+  }
+  
+  if (!mensagem) {
+    alert("Digite uma mensagem ou selecione um modelo!");
+    return;
+  }
+  
+  // Open WhatsApp with message
+  const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
+  const mensagemCodificada = encodeURIComponent(mensagem);
+  const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
+  
+  // Save to history
+  salvarHistoricoWhatsApp(cliente, mensagem, tipoMensagem, "Enviado");
+  
+  window.open(whatsappURL, "_blank");
+}
+
+// ===========================
+// WHATSAPP BULK MESSAGE
+// ===========================
+
+function enviarMensagemMassa() {
+  const templateTipo = document.getElementById("wa_template_massa").value;
+  const mensagemCustomizada = document.getElementById("wa_mensagem_massa").value;
+  
+  if (clientesSelecionadosWhatsApp.size === 0) {
+    alert("Selecione pelo menos um cliente!");
+    return;
+  }
+  
+  let tipoMensagem = templateTipo === "personalizado" ? "personalizado" : templateTipo;
+  let templateBase = "";
+  
+  if (templateTipo === "personalizado") {
+    templateBase = mensagemCustomizada;
+  } else {
+    templateBase = configuracoesWhatsApp.templates[templateTipo] || "";
+  }
+  
+  if (!templateBase) {
+    alert("Digite uma mensagem ou selecione um modelo!");
+    return;
+  }
+  
+  let contador = 0;
+  
+  clientesSelecionadosWhatsApp.forEach((clienteId) => {
+    const cliente = clientesWhatsApp.find(c => c.id === clienteId);
+    
+    if (cliente && cliente.telefone) {
+      const vencimento = formatarDataVencimento(cliente.vencimento);
+      const mensagem = substituirVariaveis(templateBase, cliente, cliente.valor, vencimento);
+      
+      // Save to history
+      salvarHistoricoWhatsApp(cliente, mensagem, tipoMensagem, "Enviado");
+      
+      contador++;
+    }
+  });
+  
+  alert(`${contador} mensagens preparadas! O WhatsApp será aberto para cada cliente.`);
+  
+  // Open WhatsApp for each selected client
+  clientesSelecionadosWhatsApp.forEach((clienteId) => {
+    const cliente = clientesWhatsApp.find(c => c.id === clienteId);
+    
+    if (cliente && cliente.telefone) {
+      const vencimento = formatarDataVencimento(cliente.vencimento);
+      const mensagem = substituirVariaveis(templateBase, cliente, cliente.valor, vencimento);
+      
+      const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
+      const mensagemCodificada = encodeURIComponent(mensagem);
+      const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
+      
+      setTimeout(() => {
+        window.open(whatsappURL, "_blank");
+      }, contador * 1000);
+    }
+  });
+  
+  // Clear selection
+  clientesSelecionadosWhatsApp.clear();
+  document.querySelectorAll(".wa-cliente-checkbox").forEach(cb => cb.checked = false);
+  document.getElementById("wa_select_all").checked = false;
+}
+
+// ===========================
+// WHATSAPP AUTOMATIC BILLING
+// ===========================
+
+function identificarCobrancasPendentes() {
+  const dataAtual = new Date();
+  let vencendoHoje = 0;
+  let vencendo3Dias = 0;
+  let vencendo7Dias = 0;
+  let emAtraso = 0;
+  
+  const tabela = document.getElementById("listaCobrancasWhatsApp");
+  tabela.innerHTML = "";
+  
+  db.collection("mensalidades")
+    .where("status", "==", "Em Aberto")
+    .onSnapshot((snapshot) => {
+      tabela.innerHTML = "";
+      vencendoHoje = 0;
+      vencendo3Dias = 0;
+      vencendo7Dias = 0;
+      emAtraso = 0;
+      
+      snapshot.forEach((doc) => {
+        const mens = doc.data();
+        const dataVencimento = new Date(mens.vencimento);
+        const diferencaDias = Math.floor((dataVencimento - dataAtual) / (1000 * 60 * 60 * 24));
+        
+        let categoria = "";
+        
+        if (diferencaDias === 0) {
+          vencendoHoje++;
+          categoria = "hoje";
+        } else if (diferencaDias > 0 && diferencaDias <= 3) {
+          vencendo3Dias++;
+          categoria = "3dias";
+        } else if (diferencaDias > 0 && diferencaDias <= 7) {
+          vencendo7Dias++;
+          categoria = "7dias";
+        } else if (diferencaDias < 0) {
+          emAtraso++;
+          categoria = "atrasado";
+        }
+        
+        if (categoria) {
+          const cliente = clientesWhatsApp.find(c => c.id === mens.clienteId);
+          if (cliente) {
+            tabela.innerHTML += `
+              <tr data-categoria="${categoria}">
+                <td>${mens.clienteNome}</td>
+                <td>${cliente.telefone || ""}</td>
+                <td>R$ ${mens.valor.toFixed(2)}</td>
+                <td>${mens.vencimento}</td>
+                <td>${diferencaDias} dias</td>
+                <td>${categoria}</td>
+                <td>
+                  <button onclick="enviarCobrancaIndividual('${doc.id}', '${categoria}')">
+                    <i class="fab fa-whatsapp"></i> Enviar
+                  </button>
+                </td>
+              </tr>
+            `;
+          }
+        }
+      });
+      
+      document.getElementById("wa_vencendo_hoje").innerText = vencendoHoje;
+      document.getElementById("wa_vencendo_3dias").innerText = vencendo3Dias;
+      document.getElementById("wa_vencendo_7dias").innerText = vencendo7Dias;
+      document.getElementById("wa_em_atraso").innerText = emAtraso;
+    }, (erro) => {
+      console.error("Erro ao identificar cobranças:", erro);
+    });
+}
+
+function enviarCobrancaIndividual(mensalidadeId, categoria) {
+  db.collection("mensalidades")
+    .doc(mensalidadeId)
+    .get()
+    .then((doc) => {
+      const mens = doc.data();
+      const cliente = clientesWhatsApp.find(c => c.id === mens.clienteId);
+      
+      if (!cliente || !cliente.telefone) {
+        alert("Cliente não encontrado ou sem telefone!");
+        return;
+      }
+      
+      let templateTipo = "";
+      let tipoMensagem = "";
+      
+      if (categoria === "3dias") {
+        templateTipo = "aviso_vencimento";
+        tipoMensagem = "aviso_vencimento";
+      } else if (categoria === "hoje") {
+        templateTipo = "cobranca_vencimento";
+        tipoMensagem = "cobranca_vencimento";
+      } else if (categoria === "atrasado") {
+        templateTipo = "cobranca_atraso";
+        tipoMensagem = "cobranca_atraso";
+      }
+      
+      const template = configuracoesWhatsApp.templates[templateTipo] || "";
+      const mensagem = substituirVariaveis(template, cliente, mens.valor, mens.vencimento);
+      
+      // Save to history
+      salvarHistoricoWhatsApp(cliente, mensagem, tipoMensagem, "Enviado");
+      
+      // Open WhatsApp
+      const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
+      const mensagemCodificada = encodeURIComponent(mensagem);
+      const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
+      
+      window.open(whatsappURL, "_blank");
+    })
+    .catch((erro) => {
+      alert("Erro: " + erro.message);
+    });
+}
+
+function enviarAvisoVencimento3Dias() {
+  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='3dias']");
+  
+  if (linhas.length === 0) {
+    alert("Não há clientes vencendo em 3 dias!");
+    return;
+  }
+  
+  if (!confirm(`Enviar aviso para ${linhas.length} clientes?`)) {
+    return;
+  }
+  
+  linhas.forEach((linha) => {
+    const botoes = linha.querySelectorAll("button");
+    if (botoes.length > 0) {
+      botoes[0].click();
+    }
+  });
+}
+
+function enviarCobrancaHoje() {
+  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='hoje']");
+  
+  if (linhas.length === 0) {
+    alert("Não há clientes vencendo hoje!");
+    return;
+  }
+  
+  if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) {
+    return;
+  }
+  
+  linhas.forEach((linha) => {
+    const botoes = linha.querySelectorAll("button");
+    if (botoes.length > 0) {
+      botoes[0].click();
+    }
+  });
+}
+
+function enviarCobrancaAtraso() {
+  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']");
+  
+  if (linhas.length === 0) {
+    alert("Não há clientes em atraso!");
+    return;
+  }
+  
+  if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) {
+    return;
+  }
+  
+  linhas.forEach((linha) => {
+    const botoes = linha.querySelectorAll("button");
+    if (botoes.length > 0) {
+      botoes[0].click();
+    }
+  });
+}
+
+function enviarCobrancaAmigavel() {
+  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']");
+  
+  if (linhas.length === 0) {
+    alert("Não há clientes em atraso!");
+    return;
+  }
+  
+  if (!confirm(`Enviar cobrança amigável para ${linhas.length} clientes?`)) {
+    return;
+  }
+  
+  linhas.forEach((linha) => {
+    const clienteNome = linha.cells[0].textContent;
+    const cliente = clientesWhatsApp.find(c => c.nome === clienteNome);
+    
+    if (cliente && cliente.telefone) {
+      const template = configuracoesWhatsApp.templates.cobranca_amigavel || "";
+      const vencimento = formatarDataVencimento(cliente.vencimento);
+      const mensagem = substituirVariaveis(template, cliente, cliente.valor, vencimento);
+      
+      // Save to history
+      salvarHistoricoWhatsApp(cliente, mensagem, "cobranca_amigavel", "Enviado");
+      
+      // Open WhatsApp
+      const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
+      const mensagemCodificada = encodeURIComponent(mensagem);
+      const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
+      
+      window.open(whatsappURL, "_blank");
+    }
+  });
+}
+
+// ===========================
+// WHATSAPP HISTORY
+// ===========================
+
+function salvarHistoricoWhatsApp(cliente, mensagem, tipo, status) {
+  const dataAtual = new Date();
+  const data = dataAtual.toLocaleDateString('pt-BR');
+  const hora = dataAtual.toLocaleTimeString('pt-BR');
+  
+  db.collection("whatsapp_historico")
+    .add({
+      clienteId: cliente.id,
+      clienteNome: cliente.nome,
+      clienteTelefone: cliente.telefone,
+      mensagem: mensagem,
+      tipo: tipo,
+      status: status,
+      data: data,
+      hora: hora,
+      timestamp: dataAtual
+    })
+    .catch((erro) => {
+      console.error("Erro ao salvar histórico:", erro);
+    });
+}
+
+function carregarHistoricoWhatsApp() {
+  db.collection("whatsapp_historico")
+    .orderBy("timestamp", "desc")
+    .limit(100)
+    .onSnapshot((snapshot) => {
+      const tabela = document.getElementById("listaHistoricoWhatsApp");
+      tabela.innerHTML = "";
+      
+      snapshot.forEach((doc) => {
+        const hist = doc.data();
+        
+        tabela.innerHTML += `
+          <tr>
+            <td>${hist.clienteNome}</td>
+            <td>${hist.data}</td>
+            <td>${hist.hora}</td>
+            <td>${hist.tipo}</td>
+            <td><span class="status-${hist.status.toLowerCase()}">${hist.status}</span></td>
+            <td>
+              <button onclick="verMensagemHistorico('${doc.id}')">
+                <i class="fas fa-eye"></i> Ver
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+    }, (erro) => {
+      console.error("Erro ao carregar histórico:", erro);
+    });
+}
+
+function filtrarHistoricoWhatsApp() {
+  const busca = document.getElementById("wa_busca_historico").value.toLowerCase();
+  const tipo = document.getElementById("wa_filtro_tipo_historico").value;
+  const status = document.getElementById("wa_filtro_status_historico").value;
+  
+  const linhas = document.querySelectorAll("#listaHistoricoWhatsApp tr");
+  
+  linhas.forEach((linha) => {
+    const cliente = linha.cells[0].textContent.toLowerCase();
+    const tipoLinha = linha.cells[3].textContent;
+    const statusLinha = linha.cells[4].textContent.toLowerCase();
+    
+    const matchBusca = cliente.includes(busca);
+    const matchTipo = tipo === "" || tipoLinha === tipo;
+    const matchStatus = status === "" || statusLinha.includes(status.toLowerCase());
+    
+    linha.style.display = matchBusca && matchTipo && matchStatus ? "" : "none";
+  });
+}
+
+function verMensagemHistorico(historicoId) {
+  db.collection("whatsapp_historico")
+    .doc(historicoId)
+    .get()
+    .then((doc) => {
+      const hist = doc.data();
+      alert(`Mensagem enviada para ${hist.clienteNome}:\n\n${hist.mensagem}`);
+    })
+    .catch((erro) => {
+      alert("Erro: " + erro.message);
+    });
+}
+
+function limparHistoricoWhatsApp() {
+  if (!confirm("Deseja limpar todo o histórico de mensagens?")) {
+    return;
+  }
+  
+  db.collection("whatsapp_historico")
+    .get()
+    .then((snapshot) => {
+      const batch = db.batch();
+      
+      snapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      
+      return batch.commit();
+    })
+    .then(() => {
+      alert("Histórico limpo com sucesso!");
+    })
+    .catch((erro) => {
+      alert("Erro: " + erro.message);
+    });
+}
+
+// ===========================
+// WHATSAPP CONFIGURATIONS
+// ===========================
+
+function carregarConfiguracoesWhatsApp() {
+  db.collection("configuracoes")
+    .doc("whatsapp")
+    .get()
+    .then((doc) => {
+      if (doc.exists) {
+        const config = doc.data();
+        
+        if (config.templates) {
+          configuracoesWhatsApp.templates = config.templates;
+          
+          // Load templates into textareas
+          Object.keys(config.templates).forEach((tipo) => {
+            const textarea = document.getElementById("wa_template_" + tipo);
+            if (textarea) {
+              textarea.value = config.templates[tipo];
+            }
+          });
+        }
+        
+        if (config.nomeEmpresa) {
+          configuracoesWhatsApp.nomeEmpresa = config.nomeEmpresa;
+          document.getElementById("wa_nome_empresa").value = config.nomeEmpresa;
+        }
+        
+        if (config.apiProvider) {
+          configuracoesWhatsApp.apiProvider = config.apiProvider;
+          document.getElementById("wa_api_provider").value = config.apiProvider;
+        }
+        
+        if (config.apiKey) {
+          configuracoesWhatsApp.apiKey = config.apiKey;
+          document.getElementById("wa_api_key").value = config.apiKey;
+        }
+        
+        if (config.apiUrl) {
+          configuracoesWhatsApp.apiUrl = config.apiUrl;
+          document.getElementById("wa_api_url").value = config.apiUrl;
+        }
+      }
+    })
+    .catch((erro) => {
+      console.error("Erro ao carregar configurações:", erro);
+    });
+}
+
+// ===========================
+// WHATSAPP HELPER FUNCTIONS
+// ===========================
+
+function formatarTelefoneWhatsApp(telefone) {
+  // Remove non-numeric characters
+  let telefoneLimpo = telefone.replace(/\D/g, '');
+  
+  // Remove country code if present (Brazil +55)
+  if (telefoneLimpo.startsWith('55') && telefoneLimpo.length === 12) {
+    telefoneLimpo = telefoneLimpo.substring(2);
+  }
+  
+  // Add country code for Brazil
+  return '55' + telefoneLimpo;
+}
+
+function formatarDataVencimento(diaVencimento) {
+  const dataAtual = new Date();
+  const dia = parseInt(diaVencimento);
+  dataAtual.setDate(dia);
+  
+  return dataAtual.toLocaleDateString('pt-BR');
+}
+
+// Template change handlers
+document.addEventListener("DOMContentLoaded", function() {
+  const templateIndividual = document.getElementById("wa_template_individual");
+  const templateMassa = document.getElementById("wa_template_massa");
+  
+  if (templateIndividual) {
+    templateIndividual.addEventListener("change", function() {
+      if (this.value !== "personalizado") {
+        carregarTemplateNaTextarea(this.value, "wa_mensagem_individual");
+      }
+    });
+  }
+  
+  if (templateMassa) {
+    templateMassa.addEventListener("change", function() {
+      if (this.value !== "personalizado") {
+        carregarTemplateNaTextarea(this.value, "wa_mensagem_massa");
+      }
+    });
   }
 });
