@@ -4,7 +4,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FTTHGestor Pro</title>
+  <meta name="description" content="ControlISP Pro - Plataforma profissional de gestão para provedores de internet. Gerencie clientes, planos, financeiro e inadimplência com facilidade.">
+  <meta name="keywords" content="ControlISP, gestão ISP, provedores internet, CRM, financeiro, gestão de clientes">
+  <meta name="author" content="ControlISP">
+  <title>ControlISP Pro</title>
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="style.css">
@@ -13,15 +16,17 @@
 <body>
 
   <!-- LOGIN -->
-  <div class="loginTela" id="loginTela">
+  <div class="loginTela" id="loginTela" style="display:flex;">
     <div class="loginBox">
-      <img src="./img/logo.png" class="logoSidebar" alt="Logo">
-      <h1>Login</h1>
+      <img src="./img/logo.png" class="logoSidebar" alt="ControlISP Pro">
+      <h1>ControlISP Pro</h1>
+      <p class="loginSubtitle">Gestão Inteligente para Provedores de Internet</p>
       <input type="email" id="usuario" placeholder="E-mail">
       <input type="password" id="senha" placeholder="Senha">
       <button onclick="fazerLogin()">
         <i class="fas fa-sign-in-alt"></i> Entrar
       </button>
+      <p class="loginFooter">&copy; 2024 ControlISP. Todos os direitos reservados.</p>
     </div>
   </div>
 
@@ -30,8 +35,8 @@
 
     <aside class="sidebar">
       <div class="sidebarTop">
-        <img src="./img/logo.png" class="logoLogin" alt="Logo">
-        <h2>Gestão de Clientes</h2>
+        <img src="./img/logo.png" class="logoLogin" alt="ControlISP Pro">
+        <h2>ControlISP Pro</h2>
       </div>
       
       <nav class="sidebarNav">
@@ -65,13 +70,13 @@
 
       <div class="topbar">
         <div class="topbarLeft">
-          <h2>Dashboard FTTH</h2>
-          <p>Gestão inteligente para provedores</p>
+          <h2>Dashboard ControlISP</h2>
+          <p>Gestão Inteligente para Provedores de Internet</p>
         </div>
       </div>
 
       <!-- DASHBOARD -->
-      <section id="dashboard" class="secao">
+      <section id="dashboard" class="secao" style="display:none;">
         <h1>Dashboard</h1>
         <div class="cards">
           <div class="card">
@@ -106,8 +111,8 @@
       </section>
 
       <!-- CLIENTES -->
-      <section id="clientes" class="secao">
-        <h1>CRM de Clientes FTTH</h1>
+      <section id="clientes" class="secao" style="display:none;">
+        <h1>CRM de Clientes</h1>
         <div class="gridClientes">
           <input id="nome" placeholder="Nome">
           <input id="cpf" placeholder="CPF/CNPJ">
@@ -154,8 +159,8 @@
       </section>
 
       <!-- PLANOS -->
-      <section id="planos" class="secao">
-        <h1>Planos</h1>
+      <section id="planos" class="secao" style="display:none;">
+        <h1>Planos de Serviço</h1>
         <div class="gridClientes">
           <input id="nomePlano" placeholder="Nome">
           <input id="velocidadePlano" placeholder="Velocidade">
@@ -185,7 +190,7 @@
       </section>
 
       <!-- FINANCEIRO -->
-      <section id="financeiro" class="secao">
+      <section id="financeiro" class="secao" style="display:none;">
 
         <!-- ============================= -->
         <!-- DASHBOARD FINANCEIRO -->
@@ -270,7 +275,7 @@
         <!-- ============================= -->
         <!-- 1. CONTAS A RECEBER -->
         <!-- ============================= -->
-        <div id="contas-receber" class="abaFinanceira ativa">
+        <div id="contas-receber" class="abaFinanceira ativa" style="display:block;">
           <div class="headerAba">
             <h2>Contas a Receber</h2>
             <button onclick="abrirModalRecebimento()" class="btnPrimario">
@@ -313,7 +318,7 @@
         <!-- ============================= -->
         <!-- 2. CONTAS A PAGAR -->
         <!-- ============================= -->
-        <div id="contas-pagar" class="abaFinanceira">
+        <div id="contas-pagar" class="abaFinanceira" style="display:none;">
           <div class="headerAba">
             <h2>Contas a Pagar</h2>
             <button onclick="abrirModalDespesa()" class="btnPrimario">
@@ -363,7 +368,7 @@
         <!-- ============================= -->
         <!-- 3. FLUXO DE CAIXA -->
         <!-- ============================= -->
-        <div id="fluxo-caixa" class="abaFinanceira">
+        <div id="fluxo-caixa" class="abaFinanceira" style="display:none;">
           <h2>Fluxo de Caixa</h2>
 
           <div class="resumoFluxo">
@@ -415,7 +420,7 @@
         <!-- ============================= -->
         <!-- 4. INADIMPLÊNCIA -->
         <!-- ============================= -->
-        <div id="inadimplencia" class="abaFinanceira">
+        <div id="inadimplencia" class="abaFinanceira" style="display:none;">
           <h2>Análise de Inadimplência</h2>
 
           <div class="indicadoresInadimplencia">
@@ -459,7 +464,7 @@
   <!-- ============================= -->
   <!-- MODAL - RECEBIMENTO -->
   <!-- ============================= -->
-  <div id="modalRecebimento" class="modal">
+  <div id="modalRecebimento" class="modal" style="display:none;">
     <div class="modalContent">
       <div class="modalHeader">
         <h2>Adicionar Cobrança</h2>
@@ -518,7 +523,7 @@
   <!-- ============================= -->
   <!-- MODAL - DESPESA -->
   <!-- ============================= -->
-  <div id="modalDespesa" class="modal">
+  <div id="modalDespesa" class="modal" style="display:none;">
     <div class="modalContent">
       <div class="modalHeader">
         <h2>Adicionar Despesa</h2>
