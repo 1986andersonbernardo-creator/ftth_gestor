@@ -321,19 +321,10 @@ function carregarClientes() {
     clientesListener();
   }
 
-  let query;
-  
-  // Admin vê todos os clientes, usuários comuns veem apenas os seus
-  if (usuarioAtual.role === "admin") {
-    query = db.collection("clientes")
-      .orderBy("nome")
-      .limit(configuracoesSistema.paginacao.clientes);
-  } else {
-    query = db.collection("clientes")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .orderBy("nome")
-      .limit(configuracoesSistema.paginacao.clientes);
-  }
+  let query = db.collection("clientes")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("nome")
+    .limit(configuracoesSistema.paginacao.clientes);
 
   if (clientesLastDoc) {
     query = query.startAfter(clientesLastDoc);
@@ -515,19 +506,10 @@ function salvarPlano() {
 }
 
 function carregarPlanos() {
-  let query;
-  
-  // Admin vê todos os planos, usuários comuns veem apenas os seus
-  if (usuarioAtual.role === "admin") {
-    query = db.collection("planos")
-      .orderBy("nome");
-  } else {
-    query = db.collection("planos")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .orderBy("nome");
-  }
-
-  query.onSnapshot((snapshot) => {
+  db.collection("planos")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("nome")
+    .onSnapshot((snapshot) => {
       const tabela = document.getElementById("listaPlanos");
       tabela.innerHTML = "";
 
@@ -947,19 +929,10 @@ function carregarRecebimentos() {
   }
 
   // Carregar mensalidades recorrentes com paginação
-  let queryMensalidades;
-  
-  // Admin vê todas as mensalidades, usuários comuns veem apenas as suas
-  if (usuarioAtual.role === "admin") {
-    queryMensalidades = db.collection("mensalidades")
-      .orderBy("vencimento", "desc")
-      .limit(configuracoesSistema.paginacao.recebimentos);
-  } else {
-    queryMensalidades = db.collection("mensalidades")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .orderBy("vencimento", "desc")
-      .limit(configuracoesSistema.paginacao.recebimentos);
-  }
+  let queryMensalidades = db.collection("mensalidades")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("vencimento", "desc")
+    .limit(configuracoesSistema.paginacao.recebimentos);
 
   if (recebimentosLastDoc) {
     queryMensalidades = queryMensalidades.startAfter(recebimentosLastDoc);
@@ -997,21 +970,11 @@ function carregarRecebimentos() {
   });
 
   // Carregar recebimentos manuais (sem paginação para não duplicar)
-  let queryRecebimentos;
-  
-  // Admin vê todos os recebimentos, usuários comuns veem apenas os seus
-  if (usuarioAtual.role === "admin") {
-    queryRecebimentos = db.collection("recebimentos")
-      .orderBy("vencimento", "desc")
-      .limit(20);
-  } else {
-    queryRecebimentos = db.collection("recebimentos")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .orderBy("vencimento", "desc")
-      .limit(20);
-  }
-
-  queryRecebimentos.get()
+  db.collection("recebimentos")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("vencimento", "desc")
+    .limit(20)
+    .get()
     .then((snapshot) => {
       snapshot.forEach((doc) => {
         const receb = doc.data();
@@ -1137,19 +1100,10 @@ function carregarDespesas() {
     despesasListener();
   }
 
-  let query;
-  
-  // Admin vê todas as despesas, usuários comuns veem apenas as suas
-  if (usuarioAtual.role === "admin") {
-    query = db.collection("despesas")
-      .orderBy("vencimento", "desc")
-      .limit(configuracoesSistema.paginacao.despesas);
-  } else {
-    query = db.collection("despesas")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .orderBy("vencimento", "desc")
-      .limit(configuracoesSistema.paginacao.despesas);
-  }
+  let query = db.collection("despesas")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("vencimento", "desc")
+    .limit(configuracoesSistema.paginacao.despesas);
 
   if (despesasLastDoc) {
     query = query.startAfter(despesasLastDoc);
@@ -1251,23 +1205,10 @@ function atualizarFluxoCaixa() {
   fluxoCaixaListeners = [];
 
   // Use Promise.all to fetch all data at once instead of nested onSnapshot
-  let queryRecebimentos, queryDespesas, queryMensalidades;
-  
-  // Admin vê todos os dados, usuários comuns veem apenas os seus
-  if (usuarioAtual.role === "admin") {
-    queryRecebimentos = db.collection("recebimentos").get();
-    queryDespesas = db.collection("despesas").get();
-    queryMensalidades = db.collection("mensalidades").get();
-  } else {
-    queryRecebimentos = db.collection("recebimentos").where("usuarioId", "==", auth.currentUser.uid).get();
-    queryDespesas = db.collection("despesas").where("usuarioId", "==", auth.currentUser.uid).get();
-    queryMensalidades = db.collection("mensalidades").where("usuarioId", "==", auth.currentUser.uid).get();
-  }
-
   Promise.all([
-    queryRecebimentos,
-    queryDespesas,
-    queryMensalidades
+    db.collection("recebimentos").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("despesas").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("mensalidades").where("usuarioId", "==", auth.currentUser.uid).get()
   ]).then(([recebSnapshot, despSnapshot, mensalidadeSnapshot]) => {
     let totalEntradas = 0;
     let totalSaidas = 0;
@@ -1351,26 +1292,11 @@ function carregarFinanceiro() {
   financeiroListeners = [];
 
   // Use Promise.all to fetch all data at once instead of nested onSnapshot
-  let queryClientes, queryRecebimentos, queryDespesas, queryMensalidades;
-  
-  // Admin vê todos os dados, usuários comuns veem apenas os seus
-  if (usuarioAtual.role === "admin") {
-    queryClientes = db.collection("clientes").get();
-    queryRecebimentos = db.collection("recebimentos").get();
-    queryDespesas = db.collection("despesas").get();
-    queryMensalidades = db.collection("mensalidades").get();
-  } else {
-    queryClientes = db.collection("clientes").where("usuarioId", "==", auth.currentUser.uid).get();
-    queryRecebimentos = db.collection("recebimentos").where("usuarioId", "==", auth.currentUser.uid).get();
-    queryDespesas = db.collection("despesas").where("usuarioId", "==", auth.currentUser.uid).get();
-    queryMensalidades = db.collection("mensalidades").where("usuarioId", "==", auth.currentUser.uid).get();
-  }
-
   Promise.all([
-    queryClientes,
-    queryRecebimentos,
-    queryDespesas,
-    queryMensalidades
+    db.collection("clientes").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("recebimentos").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("despesas").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("mensalidades").where("usuarioId", "==", auth.currentUser.uid).get()
   ]).then(([clienteSnapshot, recebSnapshot, despSnapshot, mensalidadeSnapshot]) => {
     let faturamentoMes = 0;
     let totalRecebido = 0;
@@ -1508,18 +1434,10 @@ function carregarInadimplentes() {
   const clientesUnicos = new Set();
 
   // Carregar mensalidades atrasadas
-  let queryMensalidades;
-  
-  // Admin vê todas as mensalidades, usuários comuns veem apenas as suas
-  if (usuarioAtual.role === "admin") {
-    queryMensalidades = db.collection("mensalidades").where("status", "==", "Atrasado");
-  } else {
-    queryMensalidades = db.collection("mensalidades")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .where("status", "==", "Atrasado");
-  }
-
-  queryMensalidades.onSnapshot((mensalidadeSnapshot) => {
+  db.collection("mensalidades")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .where("status", "==", "Atrasado")
+    .onSnapshot((mensalidadeSnapshot) => {
       mensalidadeSnapshot.forEach((doc) => {
         const mens = doc.data();
         totalInadimplentes++;
@@ -1555,18 +1473,10 @@ function carregarInadimplentes() {
     });
 
   // Carregar recebimentos manuais atrasados
-  let queryRecebimentos;
-  
-  // Admin vê todos os recebimentos, usuários comuns veem apenas os seus
-  if (usuarioAtual.role === "admin") {
-    queryRecebimentos = db.collection("recebimentos").where("status", "==", "Atrasado");
-  } else {
-    queryRecebimentos = db.collection("recebimentos")
-      .where("usuarioId", "==", auth.currentUser.uid)
-      .where("status", "==", "Atrasado");
-  }
-
-  queryRecebimentos.onSnapshot((snapshot) => {
+  db.collection("recebimentos")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .where("status", "==", "Atrasado")
+    .onSnapshot((snapshot) => {
       snapshot.forEach((doc) => {
         const receb = doc.data();
         totalInadimplentes++;
