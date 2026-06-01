@@ -1283,6 +1283,57 @@ function atualizarFluxoCaixa() {
 }
 
 // ===========================
+// WHATSAPP INADIMPLENTE
+// ===========================
+
+function enviarWhatsAppInadimplente(nome, valor, vencimento, telefone = "") {
+  // Se não tiver telefone, buscar do cliente
+  if (!telefone) {
+    db.collection("clientes")
+      .where("nome", "==", nome)
+      .limit(1)
+      .get()
+      .then((snapshot) => {
+        if (!snapshot.empty) {
+          const cliente = snapshot.docs[0].data();
+          abrirWhatsApp(cliente.telefone, nome, valor, vencimento);
+        } else {
+          alert("Cliente não encontrado para obter telefone.");
+        }
+      })
+      .catch((erro) => {
+        alert("Erro ao buscar telefone: " + erro.message);
+      });
+  } else {
+    abrirWhatsApp(telefone, nome, valor, vencimento);
+  }
+}
+
+function abrirWhatsApp(telefone, nome, valor, vencimento) {
+  // Formatar telefone (remover caracteres não numéricos)
+  const telefoneLimpo = telefone.replace(/\D/g, '');
+  
+  // Formatar mensagem
+  const mensagem = `Olá, ${nome}!
+
+Identificamos uma mensalidade em aberto no valor de R$ ${valor}, vencida em ${vencimento}.
+
+Caso já tenha efetuado o pagamento, desconsidere esta mensagem.
+
+Em caso de dúvidas, entre em contato conosco.
+
+Atenciosamente,
+ControlISP`;
+
+  // Codificar mensagem para URL
+  const mensagemCodificada = encodeURIComponent(mensagem);
+  
+  // Abrir WhatsApp
+  const url = `https://wa.me/55${telefoneLimpo}?text=${mensagemCodificada}`;
+  window.open(url, '_blank');
+}
+
+// ===========================
 // FINANCEIRO - DASHBOARD
 // ===========================
 
@@ -1456,6 +1507,9 @@ function carregarInadimplentes() {
             <td>${diasAtraso} dias</td>
             <td>Mensalidade</td>
             <td>
+              <button onclick="enviarWhatsAppInadimplente('${mens.clienteNome}', '${mens.valor}', '${mens.vencimento}')" style="background: #25D366; margin-right: 5px;">
+                <i class="fab fa-whatsapp"></i>
+              </button>
               <button onclick="marcarMensalidadePaga('${doc.id}')">
                 <i class="fas fa-check"></i> Marcar Pago
               </button>
@@ -1500,6 +1554,9 @@ function carregarInadimplentes() {
                 <td>${diasAtraso} dias</td>
                 <td>${cliente.telefone}</td>
                 <td>
+                  <button onclick="enviarWhatsAppInadimplente('${cliente.nome}', '${receb.valor}', '${receb.vencimento}', '${cliente.telefone}')" style="background: #25D366; margin-right: 5px;">
+                    <i class="fab fa-whatsapp"></i>
+                  </button>
                   <button onclick="marcarComoPago('${doc.id}')">
                     <i class="fas fa-check"></i> Marcar Pago
                   </button>
