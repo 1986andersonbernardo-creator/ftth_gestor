@@ -10,6 +10,7 @@
   <title>ControlISP Pro</title>
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="design-system.css">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -91,63 +92,63 @@
       <section id="dashboard" class="secao" style="display:none;">
         <h1>Dashboard</h1>
         <div class="cards">
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-users"></i>
             </div>
             <h3>Total de Clientes</h3>
             <h2 id="totalClientes">0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-user-check"></i>
             </div>
             <h3>Clientes Ativos</h3>
             <h2 id="clientesAtivos">0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-sack-dollar"></i>
             </div>
             <h3>Faturamento Mensal</h3>
             <h2 id="faturamentoMensal">R$ 0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-chart-column"></i>
             </div>
             <h3>Ticket Médio</h3>
             <h2 id="ticketMedio">R$ 0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-money-bill-wave"></i>
             </div>
             <h3>Receita Prevista</h3>
             <h2 id="receitaPrevista">R$ 0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-check-circle"></i>
             </div>
             <h3>Receita Recebida (Mês)</h3>
             <h2 id="receitaRecebidaMes">R$ 0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-clock"></i>
             </div>
             <h3>Receita Pendente</h3>
             <h2 id="receitaPendente">R$ 0</h2>
           </div>
-          <div class="card">
+          <div class="card card-premium">
             <div class="cardIcon">
               <i class="fas fa-exclamation-triangle"></i>
             </div>
             <h3>Receita em Atraso</h3>
             <h2 id="receitaAtraso">R$ 0</h2>
           </div>
-          <div class="card" onclick="mostrarSecao('calculadora-optica')" style="cursor: pointer; background: linear-gradient(135deg, #22c55e, #16a34a);">
+          <div class="card card-premium" onclick="mostrarSecao('calculadora-optica')" style="cursor: pointer; background: var(--gradient-success);">
             <div class="cardIcon">
               <i class="fas fa-network-wired"></i>
             </div>
@@ -181,7 +182,7 @@
           <input id="vencimento" type="number" placeholder="Vencimento">
         </div>
         <div class="btnGroupClientes">
-          <button class="btnPrimario" onclick="salvarCliente()">
+          <button class="btnPrimario btn-premium" onclick="salvarCliente()">
             <i class="fas fa-plus"></i> Cadastrar Cliente
           </button>
           <button class="btnSecundario" onclick="atualizarCliente()">
@@ -351,7 +352,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira">
+            <table class="tabelaFinanceira table-premium">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -401,7 +402,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira">
+            <table class="tabelaFinanceira table-premium">
               <thead>
                 <tr>
                   <th>Descrição</th>
@@ -455,7 +456,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira">
+            <table class="tabelaFinanceira table-premium">
               <thead>
                 <tr>
                   <th>Data</th>
@@ -491,7 +492,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira">
+            <table class="tabelaFinanceira table-premium">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -596,7 +597,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaWhatsApp">
+            <table class="tabelaWhatsApp table-premium">
               <thead>
                 <tr>
                   <th><input type="checkbox" id="wa_select_all" onchange="toggleSelectAllWhatsApp()"></th>
@@ -679,7 +680,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaWhatsApp">
+            <table class="tabelaWhatsApp table-premium">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -726,7 +727,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaWhatsApp">
+            <table class="tabelaWhatsApp table-premium">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -1036,7 +1037,7 @@ Atenciosamente,
 
           <div class="tableContainer">
             <h3>Últimos Usuários Cadastrados</h3>
-            <table class="tabelaAdmin">
+            <table class="tabelaAdmin table-premium">
               <thead>
                 <tr>
                   <th>Nome</th>

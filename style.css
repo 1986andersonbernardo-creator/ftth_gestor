@@ -1,6 +1,8 @@
-/* IMPORT FONT */
+/* IMPORT FONTS */
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap');
 
 /* RESET */
 
@@ -15,66 +17,136 @@ html, body {
   width: 100%;
 }
 
-/* ROOT */
+/* ROOT - DESIGN SYSTEM */
 
 :root{
-
-  --bg:#030712;
-
-  --sidebar:
-  rgba(15,23,42,0.82);
-
-  --card:
-  rgba(15,23,42,0.72);
-
-  --cardHover:
-  rgba(30,41,59,0.92);
-
-  --border:
-  rgba(255,255,255,0.08);
-
-  --primary:#3b82f6;
-  --primary2:#06b6d4;
-
-  --text:#f8fafc;
-  --muted:#94a3b8;
-
-  --success:#22c55e;
-  --warning:#f59e0b;
-  --danger:#ef4444;
-
-  --shadow:
-  0 10px 30px rgba(0,0,0,0.35);
-
-  --blur:blur(16px);
+  
+  /* Typography */
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-ui: 'Plus Jakarta Sans', sans-serif;
+  
+  /* Primary - Azul Tecnológico Moderno */
+  --primary: #2563EB;
+  --primary-light: #3B82F6;
+  --primary-dark: #1D4ED8;
+  
+  /* Secondary - Roxo Premium */
+  --secondary: #7C3AED;
+  --secondary-light: #8B5CF6;
+  --secondary-dark: #6D28D9;
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #2563EB, #7C3AED);
+  --gradient-success: linear-gradient(135deg, #10B981, #059669);
+  --gradient-warning: linear-gradient(135deg, #F59E0B, #D97706);
+  --gradient-danger: linear-gradient(135deg, #EF4444, #DC2626);
+  --gradient-info: linear-gradient(135deg, #3B82F6, #06B6D4);
+  
+  /* Semantic Colors */
+  --success: #10B981;
+  --success-light: #34D399;
+  --success-dark: #059669;
+  
+  --warning: #F59E0B;
+  --warning-light: #FBBF24;
+  --warning-dark: #D97706;
+  
+  --danger: #EF4444;
+  --danger-light: #F87171;
+  --danger-dark: #DC2626;
+  
+  --info: #3B82F6;
+  --info-light: #60A5FA;
+  --info-dark: #2563EB;
+  
+  /* Backgrounds */
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-tertiary: #334155;
+  --bg-card: rgba(30, 41, 59, 0.8);
+  --bg-card-hover: rgba(51, 65, 85, 0.9);
+  
+  /* Legacy compatibility */
+  --bg: #0F172A;
+  --sidebar: rgba(30, 41, 59, 0.9);
+  --card: rgba(30, 41, 59, 0.8);
+  --cardHover: rgba(51, 65, 85, 0.9);
+  
+  /* Text */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  
+  /* Legacy compatibility */
+  --text: #F8FAFC;
+  --muted: #94A3B8;
+  
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.2);
+  --border-focus: rgba(37, 99, 235, 0.5);
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.25);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.3);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.4);
+  
+  /* Legacy compatibility */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  
+  /* Blur */
+  --blur: blur(20px);
+  
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* BODY */
 
 body{
 
-  font-family:'Inter',sans-serif;
+  font-family:var(--font-body);
 
-  color:var(--text);
+  color:var(--text-primary);
 
   background:
   radial-gradient(
     circle at top left,
-    rgba(59,130,246,0.18),
-    transparent 30%
+    rgba(37, 99, 235, 0.15),
+    transparent 40%
   ),
 
   radial-gradient(
     circle at bottom right,
-    rgba(6,182,212,0.14),
-    transparent 30%
+    rgba(124, 58, 237, 0.12),
+    transparent 40%
   ),
 
   linear-gradient(
     135deg,
-    #020617,
-    #030712,
-    #0f172a
+    #0F172A,
+    #1E293B,
+    #0F172A
   );
 
   min-height:100vh;
@@ -99,35 +171,32 @@ body{
 .loginBox{
 
   width:100%;
-  max-width:380px;
+  max-width:400px;
 
-  padding:40px;
+  padding:48px;
 
-  border-radius:28px;
+  border-radius:24px;
 
-  background:
-  rgba(15,23,42,0.72);
+  background:var(--bg-card);
 
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
+  backdrop-filter:var(--blur);
+  -webkit-backdrop-filter:var(--blur);
 
-  border:
-  1px solid rgba(255,255,255,0.08);
+  border:1px solid var(--border);
 
-  box-shadow:
-  0 20px 40px rgba(0,0,0,0.4);
+  box-shadow:var(--shadow-2xl);
 }
 
 /* LOGO LOGIN */
 
 .logoLogin{
 
-  width:120px;
+  width:100px;
   height:auto;
 
   display:block;
 
-  margin:0 auto 20px auto;
+  margin:0 auto 24px auto;
 
   object-fit:contain;
 }
@@ -136,61 +205,69 @@ body{
 
   text-align:center;
 
-  margin-bottom:30px;
+  margin-bottom:32px;
 
+  font-family:var(--font-heading);
   font-size:32px;
+  font-weight:700;
 
-  background:
-  linear-gradient(
-    135deg,
-    #3b82f6,
-    #06b6d4
-  );
+  background:var(--gradient-primary);
 
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+
+.loginSubtitle {
+  text-align: center;
+  margin-bottom: 32px;
+  font-family:var(--font-body);
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
 /* INPUTS */
 
 input,
-select{
+select,
+textarea{
 
   width:100%;
 
-  padding:15px 18px;
+  padding:14px 18px;
 
-  border-radius:16px;
+  border-radius:var(--radius-md);
 
-  border:
-  1px solid rgba(255,255,255,0.06);
+  border:1px solid var(--border);
 
-  background:
-  rgba(15,23,42,0.75);
+  background:var(--bg-secondary);
 
-  color:var(--text);
+  color:var(--text-primary);
 
+  font-family:var(--font-ui);
   font-size:15px;
 
-  transition:all .25s ease;
+  transition:all var(--transition-base);
 
-  margin-bottom:14px;
+  margin-bottom:16px;
 }
 
-input::placeholder{
-  color:#64748b;
+input::placeholder,
+select::placeholder,
+textarea::placeholder{
+  color:var(--text-muted);
 }
 
 input:focus,
-select:focus{
+select:focus,
+textarea:focus{
 
   outline:none;
 
-  border:
-  1px solid rgba(59,130,246,0.7);
+  border-color:var(--border-focus);
 
-  box-shadow:
-  0 0 0 4px rgba(59,130,246,0.15);
+  box-shadow:0 0 0 4px rgba(37, 99, 235, 0.15);
 }
 
 /* BUTTONS */
@@ -199,43 +276,35 @@ button{
 
   border:none;
 
-  border-radius:16px;
+  border-radius:var(--radius-md);
 
-  padding:14px 22px;
+  padding:14px 24px;
 
   cursor:pointer;
 
   color:white;
 
+  font-family:var(--font-ui);
   font-weight:600;
-
   font-size:15px;
 
-  transition:all .25s ease;
+  transition:all var(--transition-base);
 
-  background:
-  linear-gradient(
-    135deg,
-    #3b82f6,
-    #06b6d4
-  );
+  background:var(--gradient-primary);
 
-  box-shadow:
-  0 10px 20px rgba(59,130,246,0.22);
+  box-shadow:var(--shadow-md);
 }
 
 button:hover{
 
-  transform:
-  translateY(-3px);
+  transform:translateY(-2px);
 
-  box-shadow:
-  0 14px 30px rgba(59,130,246,0.32);
+  box-shadow:var(--shadow-lg);
 }
 
 button:active{
 
-  transform:scale(.98);
+  transform:scale(0.98);
 }
 
 /* LOGIN BUTTON */
@@ -255,18 +324,16 @@ button:active{
 
 .sidebar{
 
-  width:270px;
+  width:280px;
 
-  padding:25px 18px;
+  padding:24px 20px;
 
-  background:
-  rgba(15,23,42,0.78);
+  background:var(--sidebar);
 
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
+  backdrop-filter:var(--blur);
+  -webkit-backdrop-filter:var(--blur);
 
-  border-right:
-  1px solid rgba(255,255,255,0.06);
+  border-right:1px solid var(--border);
 
   position:sticky;
   top:0;
@@ -278,12 +345,12 @@ button:active{
 
 .logoSidebar{
 
-  width:90px;
+  width:80px;
   height:auto;
 
   display:block;
 
-  margin:0 auto 15px auto;
+  margin:0 auto 16px auto;
 
   object-fit:contain;
 }
@@ -294,21 +361,17 @@ button:active{
 
   text-align:center;
 
-  margin-bottom:35px;
+  margin-bottom:32px;
 
+  font-family:var(--font-heading);
   font-size:24px;
-
   font-weight:700;
 
-  background:
-  linear-gradient(
-    135deg,
-    #3b82f6,
-    #06b6d4
-  );
+  background:var(--gradient-primary);
 
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
+  background-clip:text;
 }
 
 /* MENU BUTTONS */
@@ -342,14 +405,11 @@ button:active{
 
 .sidebar button:hover{
 
-  background:
-  rgba(30,41,59,0.9);
+  background:var(--bg-card-hover);
 
-  border:
-  1px solid rgba(59,130,246,0.2);
+  border:1px solid var(--border-hover);
 
-  transform:
-  translateX(5px);
+  transform:translateX(4px);
 }
 
 /* MAIN */
