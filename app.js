@@ -6,12 +6,216 @@ let clienteEditando = null;
 let planoEditando = null;
 let mensalidadeEditando = null;
 
+// Pagination variables
+let clientesLastDoc = null;
+let recebimentosLastDoc = null;
+let despesasLastDoc = null;
+let clientesPageSize = 20;
+let recebimentosPageSize = 20;
+let despesasPageSize = 20;
+
+// Listener references for cleanup
+let clientesListener = null;
+let planosListener = null;
+let financeiroListeners = [];
+let fluxoCaixaListeners = [];
+let recebimentosListener = null;
+let despesasListener = null;
+let inadimplentesListeners = [];
+let whatsappListeners = [];
+let adminListeners = [];
+
+// ===========================
+// SECURITY - INPUT SANITIZATION
+// ===========================
+
+function sanitizarInput(input) {
+  if (!input) return "";
+  
+  // Remove HTML tags
+  let sanitized = input.replace(/<[^>]*>/g, "");
+  
+  // Remove potentially dangerous characters
+  sanitized = sanitized.replace(/[<>\"'&]/g, "");
+  
+  // Remove script attempts
+  sanitized = sanitized.replace(/javascript:/gi, "");
+  sanitized = sanitized.replace(/on\w+\s*=/gi, "");
+  
+  // Trim whitespace
+  sanitized = sanitized.trim();
+  
+  return sanitized;
+}
+
+function sanitizarEmail(email) {
+  if (!email) return "";
+  
+  let sanitized = email.toLowerCase().trim();
+  
+  // Remove HTML tags and scripts
+  sanitized = sanitized.replace(/<[^>]*>/g, "");
+  sanitized = sanitized.replace(/javascript:/gi, "");
+  
+  // Basic email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(sanitized)) {
+    return "";
+  }
+  
+  return sanitized;
+}
+
+function sanitizarTelefone(telefone) {
+  if (!telefone) return "";
+  
+  // Remove all non-numeric characters
+  let sanitized = telefone.replace(/\D/g, "");
+  
+  // Keep only digits (11 for Brazil: 55 + 9 digits + 2 digits)
+  if (sanitized.length > 11) {
+    sanitized = sanitized.substring(0, 11);
+  }
+  
+  return sanitized;
+}
+
+function sanitizarTexto(texto) {
+  if (!texto) return "";
+  
+  // Remove HTML tags
+  let sanitized = texto.replace(/<[^>]*>/g, "");
+  
+  // Remove script attempts
+  sanitized = sanitized.replace(/javascript:/gi, "");
+  sanitized = sanitized.replace(/on\w+\s*=/gi, "");
+  
+  // Trim whitespace
+  sanitized = sanitized.trim();
+  
+  return sanitized;
+}
+
+// ===========================
+// AUDIT LOGGING
+// ===========================
+
+async function registrarAuditoria(acao, descricao) {
+  if (!auth.currentUser) return;
+  
+  try {
+    await db.collection("auditoria").add({
+      usuarioId: auth.currentUser.uid,
+      usuarioEmail: auth.currentUser.email,
+      acao: acao,
+      descricao: descricao,
+      dataHora: new Date(),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (erro) {
+    console.error("Erro ao registrar auditoria:", erro);
+  }
+}
+
+// ===========================
+// SYSTEM CONFIGURATION
+// ===========================
+
+let configuracoesSistema = {
+  planos: {
+    "Básico": 49.90,
+    "Pro": 99.90,
+    "Enterprise": 199.90
+  },
+  paginacao: {
+    clientes: 20,
+    recebimentos: 20,
+    despesas: 20
+  }
+};
+
+async function carregarConfiguracoesSistema() {
+  try {
+    const doc = await db.collection("configuracoes").doc("sistema").get();
+    if (doc.exists) {
+      configuracoesSistema = { ...configuracoesSistema, ...doc.data() };
+    }
+  } catch (erro) {
+    console.error("Erro ao carregar configurações do sistema:", erro);
+  }
+}
+
+// ===========================
+// BACKUP SYSTEM
+// ===========================
+
+async function criarBackup() {
+  if (!auth.currentUser) return;
+  
+  try {
+    const backupId = `backup_${auth.currentUser.uid}_${new Date().toISOString()}`;
+    const backupRef = db.collection("backups").doc(backupId);
+    
+    const collections = ["clientes", "planos", "recebimentos", "despesas", "mensalidades", "whatsapp_historico"];
+    const backupData = {};
+    
+    for (const collection of collections) {
+      const snapshot = await db.collection(collection)
+        .where("usuarioId", "==", auth.currentUser.uid)
+        .get();
+      
+      backupData[collection] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        data: doc.data()
+      }));
+    }
+    
+    await backupRef.set({
+      usuarioId: auth.currentUser.uid,
+      data: backupData,
+      criadoEm: new Date(),
+      tamanho: JSON.stringify(backupData).length
+    });
+    
+    console.log("Backup criado com sucesso:", backupId);
+    await registrarAuditoria("backup", "Backup criado: " + backupId);
+  } catch (erro) {
+    console.error("Erro ao criar backup:", erro);
+  }
+}
+
+// ===========================
+// LISTENER CLEANUP
+// ===========================
+
+function limparListeners() {
+  if (clientesListener) clientesListener();
+  if (planosListener) planosListener();
+  if (recebimentosListener) recebimentosListener();
+  if (despesasListener) despesasListener();
+  
+  financeiroListeners.forEach(listener => listener());
+  financeiroListeners = [];
+  
+  fluxoCaixaListeners.forEach(listener => listener());
+  fluxoCaixaListeners = [];
+  
+  inadimplentesListeners.forEach(listener => listener());
+  inadimplentesListeners = [];
+  
+  whatsappListeners.forEach(listener => listener());
+  whatsappListeners = [];
+  
+  adminListeners.forEach(listener => listener());
+  adminListeners = [];
+}
+
 // ===========================
 // LOGIN
 // ===========================
 
 function fazerLogin() {
-  const email = document.getElementById("usuario").value;
+  const email = sanitizarEmail(document.getElementById("usuario").value);
   const senha = document.getElementById("senha").value;
 
   if (!email || !senha) {
@@ -20,10 +224,14 @@ function fazerLogin() {
   }
 
   auth.signInWithEmailAndPassword(email, senha)
-    .then(() => {
+    .then(async () => {
       document.getElementById("loginTela").style.display = "none";
       document.getElementById("sistema").style.display = "flex";
       mostrarSecao("dashboard");
+      
+      await carregarConfiguracoesSistema();
+      await registrarAuditoria("login", "Usuário fez login");
+      
       carregarClientes();
       carregarPlanos();
       carregarFinanceiro();
@@ -54,14 +262,14 @@ function mostrarSecao(id) {
 // ===========================
 
 function salvarCliente() {
-  const nome = document.getElementById("nome").value;
-  const cpf = document.getElementById("cpf").value;
-  const telefone = document.getElementById("telefone").value;
-  const email = document.getElementById("email").value;
-  const endereco = document.getElementById("endereco").value;
-  const bairro = document.getElementById("bairro").value;
-  const cidade = document.getElementById("cidade").value;
-  const cep = document.getElementById("cep").value;
+  const nome = sanitizarInput(document.getElementById("nome").value);
+  const cpf = sanitizarInput(document.getElementById("cpf").value);
+  const telefone = sanitizarTelefone(document.getElementById("telefone").value);
+  const email = sanitizarEmail(document.getElementById("email").value);
+  const endereco = sanitizarInput(document.getElementById("endereco").value);
+  const bairro = sanitizarInput(document.getElementById("bairro").value);
+  const cidade = sanitizarInput(document.getElementById("cidade").value);
+  const cep = sanitizarInput(document.getElementById("cep").value);
   const status = document.getElementById("status").value;
   const plano = document.getElementById("plano").value;
   const valor = Number(document.getElementById("valor").value);
@@ -73,6 +281,7 @@ function salvarCliente() {
   }
 
   const cliente = {
+    usuarioId: auth.currentUser.uid,
     nome,
     cpf,
     telefone,
@@ -90,10 +299,11 @@ function salvarCliente() {
 
   db.collection("clientes")
     .add(cliente)
-    .then((docRef) => {
+    .then(async (docRef) => {
       alert("Cliente cadastrado com sucesso!");
       limparFormulario();
       carregarFinanceiro();
+      await registrarAuditoria("cliente_criado", `Cliente cadastrado: ${nome}`);
       
       // Gerar primeira mensalidade automaticamente se cliente estiver Ativo
       if (status === "Ativo" && valor > 0 && vencimento) {
@@ -106,55 +316,72 @@ function salvarCliente() {
 }
 
 function carregarClientes() {
-  db.collection("clientes")
+  // Clean up existing listener
+  if (clientesListener) {
+    clientesListener();
+  }
+
+  let query = db.collection("clientes")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("nome")
-    .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaClientes");
-      tabela.innerHTML = "";
+    .limit(configuracoesSistema.paginacao.clientes);
 
-      let totalClientes = 0;
-      let clientesAtivos = 0;
-      let faturamentoTotal = 0;
+  if (clientesLastDoc) {
+    query = query.startAfter(clientesLastDoc);
+  }
 
-      snapshot.forEach((doc) => {
-        const cliente = doc.data();
-        totalClientes++;
+  clientesListener = query.onSnapshot((snapshot) => {
+    const tabela = document.getElementById("listaClientes");
+    tabela.innerHTML = "";
 
-        if (cliente.status === "Ativo") {
-          clientesAtivos++;
-          faturamentoTotal += Number(cliente.valor) || 0;
-        }
+    let totalClientes = 0;
+    let clientesAtivos = 0;
+    let faturamentoTotal = 0;
 
-        tabela.innerHTML += `
-          <tr>
-            <td>${cliente.nome || ""}</td>
-            <td>${cliente.telefone || ""}</td>
-            <td>${cliente.status || ""}</td>
-            <td>${cliente.plano || ""}</td>
-            <td>${cliente.vencimento || ""}</td>
-            <td>
-              <button onclick="editarCliente('${doc.id}')">
-                <i class="fas fa-pencil"></i> Editar
-              </button>
-              <button onclick="excluirCliente('${doc.id}')">
-                <i class="fas fa-trash"></i> Excluir
-              </button>
-            </td>
-          </tr>
-        `;
-      });
+    snapshot.forEach((doc) => {
+      const cliente = doc.data();
+      totalClientes++;
 
-      document.getElementById("totalClientes").innerText = totalClientes;
-      document.getElementById("clientesAtivos").innerText = clientesAtivos;
-      
-      // Atualizar faturamento e ticket médio
-      document.getElementById("faturamentoMensal").innerText = "R$ " + faturamentoTotal.toFixed(2);
-      document.getElementById("receitaPrevista").innerText = "R$ " + faturamentoTotal.toFixed(2);
-      document.getElementById("ticketMedio").innerText = "R$ " + 
-        (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
-    }, (erro) => {
-      console.error("Erro ao carregar clientes:", erro);
+      if (cliente.status === "Ativo") {
+        clientesAtivos++;
+        faturamentoTotal += Number(cliente.valor) || 0;
+      }
+
+      tabela.innerHTML += `
+        <tr>
+          <td>${cliente.nome || ""}</td>
+          <td>${cliente.telefone || ""}</td>
+          <td>${cliente.status || ""}</td>
+          <td>${cliente.plano || ""}</td>
+          <td>${cliente.vencimento || ""}</td>
+          <td>
+            <button onclick="editarCliente('${doc.id}')">
+              <i class="fas fa-pencil"></i> Editar
+            </button>
+            <button onclick="excluirCliente('${doc.id}')">
+              <i class="fas fa-trash"></i> Excluir
+            </button>
+          </td>
+        </tr>
+      `;
     });
+
+    // Update last doc for pagination
+    if (snapshot.docs.length > 0) {
+      clientesLastDoc = snapshot.docs[snapshot.docs.length - 1];
+    }
+
+    document.getElementById("totalClientes").innerText = totalClientes;
+    document.getElementById("clientesAtivos").innerText = clientesAtivos;
+    
+    // Atualizar faturamento e ticket médio
+    document.getElementById("faturamentoMensal").innerText = "R$ " + faturamentoTotal.toFixed(2);
+    document.getElementById("receitaPrevista").innerText = "R$ " + faturamentoTotal.toFixed(2);
+    document.getElementById("ticketMedio").innerText = "R$ " + 
+      (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
+  }, (erro) => {
+    console.error("Erro ao carregar clientes:", erro);
+  });
 }
 
 async function editarCliente(id) {
@@ -218,9 +445,10 @@ function excluirCliente(id) {
   db.collection("clientes")
     .doc(id)
     .delete()
-    .then(() => {
+    .then(async () => {
       alert("Cliente removido!");
       carregarFinanceiro();
+      await registrarAuditoria("cliente_excluido", `Cliente excluído: ID ${id}`);
     })
     .catch((erro) => {
       alert("Erro: " + erro.message);
@@ -248,8 +476,8 @@ function limparFormulario() {
 // ===========================
 
 function salvarPlano() {
-  const nome = document.getElementById("nomePlano").value;
-  const velocidade = document.getElementById("velocidadePlano").value;
+  const nome = sanitizarInput(document.getElementById("nomePlano").value);
+  const velocidade = sanitizarInput(document.getElementById("velocidadePlano").value);
   const valor = Number(document.getElementById("valorPlano").value);
 
   if (!nome || !velocidade || !valor) {
@@ -258,6 +486,7 @@ function salvarPlano() {
   }
 
   const plano = {
+    usuarioId: auth.currentUser.uid,
     nome,
     velocidade,
     valor,
@@ -266,9 +495,10 @@ function salvarPlano() {
 
   db.collection("planos")
     .add(plano)
-    .then(() => {
+    .then(async () => {
       alert("Plano cadastrado com sucesso!");
       limparFormularioPlano();
+      await registrarAuditoria("plano_criado", `Plano cadastrado: ${nome}`);
     })
     .catch((erro) => {
       alert("Erro ao salvar: " + erro.message);
@@ -277,6 +507,7 @@ function salvarPlano() {
 
 function carregarPlanos() {
   db.collection("planos")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("nome")
     .onSnapshot((snapshot) => {
       const tabela = document.getElementById("listaPlanos");
@@ -310,6 +541,7 @@ function carregarPlanosSelect() {
   const select = document.getElementById("plano");
 
   db.collection("planos")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("nome")
     .onSnapshot((snapshot) => {
       select.innerHTML = '<option value="">Selecione um plano</option>';
@@ -368,8 +600,9 @@ function excluirPlano(id) {
   db.collection("planos")
     .doc(id)
     .delete()
-    .then(() => {
+    .then(async () => {
       alert("Plano removido!");
+      await registrarAuditoria("plano_excluido", `Plano excluído: ID ${id}`);
     })
     .catch((erro) => {
       alert("Erro: " + erro.message);
@@ -421,6 +654,7 @@ function gerarMensalidadeInicial(clienteId, clienteNome, plano, valor, venciment
       if (snapshot.empty) {
         // Não existe, criar nova mensalidade
         const mensalidade = {
+          usuarioId: auth.currentUser.uid,
           clienteId,
           clienteNome,
           plano,
@@ -453,6 +687,7 @@ function gerarMensalidadesNovoMes() {
 
   // Buscar todos os clientes ativos
   db.collection("clientes")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .where("status", "==", "Ativo")
     .get()
     .then((snapshot) => {
@@ -471,6 +706,7 @@ function gerarMensalidadesNovoMes() {
               const dataVencimento = calcularDataVencimento(cliente.vencimento, dataAtual);
               
               const mensalidade = {
+                usuarioId: auth.currentUser.uid,
                 clienteId,
                 clienteNome: cliente.nome,
                 plano: cliente.plano,
@@ -582,6 +818,7 @@ function excluirMensalidade(mensalidadeId) {
 
 function carregarMensalidades() {
   db.collection("mensalidades")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("vencimento", "desc")
     .onSnapshot((snapshot) => {
       const tabela = document.getElementById("listaRecebimentos");
@@ -627,6 +864,7 @@ function fecharModalRecebimento() {
 function carregarClientesRecebimento() {
   const select = document.getElementById("receb_cliente");
   db.collection("clientes")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .where("status", "==", "Ativo")
     .orderBy("nome")
     .get()
@@ -651,7 +889,7 @@ function salvarRecebimento() {
   const vencimento = document.getElementById("receb_vencimento").value;
   const pagamento = document.getElementById("receb_pagamento").value;
   const status = document.getElementById("receb_status").value;
-  const observacao = document.getElementById("receb_observacao").value;
+  const observacao = sanitizarTexto(document.getElementById("receb_observacao").value);
 
   if (!clienteId || !valor || !vencimento || !pagamento) {
     alert("Preencha todos os campos obrigatórios!");
@@ -660,6 +898,7 @@ function salvarRecebimento() {
 
   db.collection("recebimentos")
     .add({
+      usuarioId: auth.currentUser.uid,
       clienteId,
       valor,
       vencimento,
@@ -668,11 +907,12 @@ function salvarRecebimento() {
       observacao,
       dataCadastro: new Date()
     })
-    .then(() => {
+    .then(async () => {
       alert("Cobrança cadastrada com sucesso!");
       fecharModalRecebimento();
       carregarRecebimentos();
       carregarFinanceiro();
+      await registrarAuditoria("recebimento_criado", `Cobrança criada: R$ ${valor}`);
     })
     .catch((erro) => {
       alert("Erro: " + erro.message);
@@ -683,39 +923,59 @@ function carregarRecebimentos() {
   const tabela = document.getElementById("listaRecebimentos");
   tabela.innerHTML = "";
 
-  // Carregar mensalidades recorrentes
-  db.collection("mensalidades")
-    .orderBy("vencimento", "desc")
-    .onSnapshot((mensalidadeSnapshot) => {
-      let htmlMensalidades = "";
-      mensalidadeSnapshot.forEach((doc) => {
-        const mens = doc.data();
-        const statusClass = mens.status === "Pago" ? "status-pago" : mens.status === "Atrasado" ? "status-atrasado" : "status-pendente";
-        
-        htmlMensalidades += `
-          <tr>
-            <td>${mens.clienteNome || ""}</td>
-            <td>R$ ${mens.valor.toFixed(2)}</td>
-            <td>${mens.vencimento}</td>
-            <td><span class="${statusClass}">${mens.status}</span></td>
-            <td>${mens.tipo || "Recorrente"}</td>
-            <td>
-              ${mens.status !== "Pago" ? `<button onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i></button>` : ""}
-              ${mens.status === "Em Aberto" ? `<button onclick="marcarMensalidadeAtrasada('${doc.id}')"><i class="fas fa-exclamation"></i></button>` : ""}
-              <button onclick="excluirMensalidade('${doc.id}')"><i class="fas fa-trash"></i></button>
-            </td>
-          </tr>
-        `;
-      });
-      tabela.innerHTML = htmlMensalidades;
-    }, (erro) => {
-      console.error("Erro ao carregar mensalidades:", erro);
-    });
+  // Clean up existing listener
+  if (recebimentosListener) {
+    recebimentosListener();
+  }
 
-  // Carregar recebimentos manuais
-  db.collection("recebimentos")
+  // Carregar mensalidades recorrentes com paginação
+  let queryMensalidades = db.collection("mensalidades")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("vencimento", "desc")
-    .onSnapshot((snapshot) => {
+    .limit(configuracoesSistema.paginacao.recebimentos);
+
+  if (recebimentosLastDoc) {
+    queryMensalidades = queryMensalidades.startAfter(recebimentosLastDoc);
+  }
+
+  recebimentosListener = queryMensalidades.onSnapshot((mensalidadeSnapshot) => {
+    let htmlMensalidades = "";
+    mensalidadeSnapshot.forEach((doc) => {
+      const mens = doc.data();
+      const statusClass = mens.status === "Pago" ? "status-pago" : mens.status === "Atrasado" ? "status-atrasado" : "status-pendente";
+      
+      htmlMensalidades += `
+        <tr>
+          <td>${mens.clienteNome || ""}</td>
+          <td>R$ ${mens.valor.toFixed(2)}</td>
+          <td>${mens.vencimento}</td>
+          <td><span class="${statusClass}">${mens.status}</span></td>
+          <td>${mens.tipo || "Recorrente"}</td>
+          <td>
+            ${mens.status !== "Pago" ? `<button onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i></button>` : ""}
+            ${mens.status === "Em Aberto" ? `<button onclick="marcarMensalidadeAtrasada('${doc.id}')"><i class="fas fa-exclamation"></i></button>` : ""}
+            <button onclick="excluirMensalidade('${doc.id}')"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>
+      `;
+    });
+    tabela.innerHTML = htmlMensalidades;
+
+    // Update last doc for pagination
+    if (mensalidadeSnapshot.docs.length > 0) {
+      recebimentosLastDoc = mensalidadeSnapshot.docs[mensalidadeSnapshot.docs.length - 1];
+    }
+  }, (erro) => {
+    console.error("Erro ao carregar mensalidades:", erro);
+  });
+
+  // Carregar recebimentos manuais (sem paginação para não duplicar)
+  db.collection("recebimentos")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("vencimento", "desc")
+    .limit(20)
+    .get()
+    .then((snapshot) => {
       snapshot.forEach((doc) => {
         const receb = doc.data();
         db.collection("clientes")
@@ -740,7 +1000,8 @@ function carregarRecebimentos() {
             `;
           });
       });
-    }, (erro) => {
+    })
+    .catch((erro) => {
       console.error("Erro ao carregar recebimentos:", erro);
     });
 }
@@ -773,10 +1034,11 @@ function excluirRecebimento(id) {
   db.collection("recebimentos")
     .doc(id)
     .delete()
-    .then(() => {
+    .then(async () => {
       alert("Recebimento removido!");
       carregarRecebimentos();
       carregarFinanceiro();
+      await registrarAuditoria("recebimento_excluido", `Recebimento excluído: ID ${id}`);
     })
     .catch((erro) => {
       alert("Erro: " + erro.message);
@@ -796,12 +1058,12 @@ function fecharModalDespesa() {
 }
 
 function salvarDespesa() {
-  const descricao = document.getElementById("desp_descricao").value;
+  const descricao = sanitizarInput(document.getElementById("desp_descricao").value);
   const categoria = document.getElementById("desp_categoria").value;
   const valor = Number(document.getElementById("desp_valor").value);
   const vencimento = document.getElementById("desp_vencimento").value;
   const status = document.getElementById("desp_status").value;
-  const observacao = document.getElementById("desp_observacao").value;
+  const observacao = sanitizarTexto(document.getElementById("desp_observacao").value);
 
   if (!descricao || !categoria || !valor || !vencimento) {
     alert("Preencha todos os campos obrigatórios!");
@@ -810,6 +1072,7 @@ function salvarDespesa() {
 
   db.collection("despesas")
     .add({
+      usuarioId: auth.currentUser.uid,
       descricao,
       categoria,
       valor,
@@ -818,12 +1081,13 @@ function salvarDespesa() {
       observacao,
       dataCadastro: new Date()
     })
-    .then(() => {
+    .then(async () => {
       alert("Despesa cadastrada com sucesso!");
       fecharModalDespesa();
       limparFormularioDespesa();
       carregarDespesas();
       carregarFinanceiro();
+      await registrarAuditoria("despesa_criada", `Despesa criada: ${descricao} - R$ ${valor}`);
     })
     .catch((erro) => {
       alert("Erro: " + erro.message);
@@ -831,33 +1095,50 @@ function salvarDespesa() {
 }
 
 function carregarDespesas() {
-  db.collection("despesas")
-    .orderBy("vencimento", "desc")
-    .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaDespesas");
-      tabela.innerHTML = "";
+  // Clean up existing listener
+  if (despesasListener) {
+    despesasListener();
+  }
 
-      snapshot.forEach((doc) => {
-        const desp = doc.data();
-        const statusClass = desp.status === "Pago" ? "status-pago" : "status-pendente";
-        
-        tabela.innerHTML += `
-          <tr>
-            <td>${desp.descricao}</td>
-            <td>${desp.categoria}</td>
-            <td>R$ ${desp.valor.toFixed(2)}</td>
-            <td>${desp.vencimento}</td>
-            <td><span class="${statusClass}">${desp.status}</span></td>
-            <td>
-              <button onclick="editarDespesa('${doc.id}')"><i class="fas fa-pencil"></i></button>
-              <button onclick="excluirDespesa('${doc.id}')"><i class="fas fa-trash"></i></button>
-            </td>
-          </tr>
-        `;
-      });
-    }, (erro) => {
-      console.error("Erro ao carregar despesas:", erro);
+  let query = db.collection("despesas")
+    .where("usuarioId", "==", auth.currentUser.uid)
+    .orderBy("vencimento", "desc")
+    .limit(configuracoesSistema.paginacao.despesas);
+
+  if (despesasLastDoc) {
+    query = query.startAfter(despesasLastDoc);
+  }
+
+  despesasListener = query.onSnapshot((snapshot) => {
+    const tabela = document.getElementById("listaDespesas");
+    tabela.innerHTML = "";
+
+    snapshot.forEach((doc) => {
+      const desp = doc.data();
+      const statusClass = desp.status === "Pago" ? "status-pago" : "status-pendente";
+      
+      tabela.innerHTML += `
+        <tr>
+          <td>${desp.descricao}</td>
+          <td>${desp.categoria}</td>
+          <td>R$ ${desp.valor.toFixed(2)}</td>
+          <td>${desp.vencimento}</td>
+          <td><span class="${statusClass}">${desp.status}</span></td>
+          <td>
+            <button onclick="editarDespesa('${doc.id}')"><i class="fas fa-pencil"></i></button>
+            <button onclick="excluirDespesa('${doc.id}')"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>
+      `;
     });
+
+    // Update last doc for pagination
+    if (snapshot.docs.length > 0) {
+      despesasLastDoc = snapshot.docs[snapshot.docs.length - 1];
+    }
+  }, (erro) => {
+    console.error("Erro ao carregar despesas:", erro);
+  });
 }
 
 function filtrarDespesas() {
@@ -891,10 +1172,11 @@ function excluirDespesa(id) {
   db.collection("despesas")
     .doc(id)
     .delete()
-    .then(() => {
+    .then(async () => {
       alert("Despesa removida!");
       carregarDespesas();
       carregarFinanceiro();
+      await registrarAuditoria("despesa_excluida", `Despesa excluída: ID ${id}`);
     })
     .catch((erro) => {
       alert("Erro: " + erro.message);
@@ -918,88 +1200,86 @@ function atualizarFluxoCaixa() {
   const dataInicio = document.getElementById("dataInicio").value;
   const dataFim = document.getElementById("dataFim").value;
 
-  db.collection("recebimentos")
-    .onSnapshot((recebSnapshot) => {
-      db.collection("despesas")
-        .onSnapshot((despSnapshot) => {
-          db.collection("mensalidades")
-            .onSnapshot((mensalidadeSnapshot) => {
-              let totalEntradas = 0;
-              let totalSaidas = 0;
-              let fluxoHTML = "";
+  // Clean up existing listeners
+  fluxoCaixaListeners.forEach(listener => listener());
+  fluxoCaixaListeners = [];
 
-              // Processar recebimentos manuais
-              recebSnapshot.forEach((doc) => {
-                const receb = doc.data();
-                if (receb.status === "Pago") {
-                  const data = receb.vencimento;
-                  if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-                    totalEntradas += receb.valor;
-                    fluxoHTML += `
-                      <tr>
-                        <td>${data}</td>
-                        <td>Entrada</td>
-                        <td>Recebimento Manual</td>
-                        <td class="valor-entrada">+R$ ${receb.valor.toFixed(2)}</td>
-                      </tr>
-                    `;
-                  }
-                }
-              });
+  // Use Promise.all to fetch all data at once instead of nested onSnapshot
+  Promise.all([
+    db.collection("recebimentos").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("despesas").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("mensalidades").where("usuarioId", "==", auth.currentUser.uid).get()
+  ]).then(([recebSnapshot, despSnapshot, mensalidadeSnapshot]) => {
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    let fluxoHTML = "";
 
-              // Processar mensalidades pagas
-              mensalidadeSnapshot.forEach((doc) => {
-                const mens = doc.data();
-                if (mens.status === "Pago") {
-                  const data = mens.dataPagamento || mens.vencimento;
-                  if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-                    totalEntradas += mens.valor;
-                    fluxoHTML += `
-                      <tr>
-                        <td>${data}</td>
-                        <td>Entrada</td>
-                        <td>Mensalidade - ${mens.clienteNome}</td>
-                        <td class="valor-entrada">+R$ ${mens.valor.toFixed(2)}</td>
-                      </tr>
-                    `;
-                  }
-                }
-              });
-
-              // Processar despesas
-              despSnapshot.forEach((doc) => {
-                const desp = doc.data();
-                if (desp.status === "Pago") {
-                  const data = desp.vencimento;
-                  if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-                    totalSaidas += desp.valor;
-                    fluxoHTML += `
-                      <tr>
-                        <td>${data}</td>
-                        <td>Saída</td>
-                        <td>${desp.descricao}</td>
-                        <td class="valor-saida">-R$ ${desp.valor.toFixed(2)}</td>
-                      </tr>
-                    `;
-                  }
-                }
-              });
-
-              const saldo = totalEntradas - totalSaidas;
-
-              document.getElementById("totalEntradas").innerText = "R$ " + totalEntradas.toFixed(2);
-              document.getElementById("totalSaidas").innerText = "R$ " + totalSaidas.toFixed(2);
-              document.getElementById("saldoAtual").innerText = "R$ " + saldo.toFixed(2);
-              document.getElementById("listaFluxoCaixa").innerHTML = fluxoHTML;
-            }, (erro) => {
-              console.error("Erro ao atualizar fluxo de caixa com mensalidades:", erro);
-            });
-        }, (erro) => {
-          console.error("Erro ao atualizar fluxo de caixa:", erro);
-        });
-    }, (erro) => {
-      console.error("Erro ao atualizar fluxo de caixa:", erro);
+    // Processar recebimentos manuais
+    recebSnapshot.forEach((doc) => {
+      const receb = doc.data();
+      if (receb.status === "Pago") {
+        const data = receb.vencimento;
+        if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
+          totalEntradas += receb.valor;
+          fluxoHTML += `
+            <tr>
+              <td>${data}</td>
+              <td>Entrada</td>
+              <td>Recebimento Manual</td>
+              <td class="valor-entrada">+R$ ${receb.valor.toFixed(2)}</td>
+            </tr>
+          `;
+        }
+      }
     });
+
+    // Processar mensalidades pagas
+    mensalidadeSnapshot.forEach((doc) => {
+      const mens = doc.data();
+      if (mens.status === "Pago") {
+        const data = mens.dataPagamento || mens.vencimento;
+        if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
+          totalEntradas += mens.valor;
+          fluxoHTML += `
+            <tr>
+              <td>${data}</td>
+              <td>Entrada</td>
+              <td>Mensalidade - ${mens.clienteNome}</td>
+              <td class="valor-entrada">+R$ ${mens.valor.toFixed(2)}</td>
+            </tr>
+          `;
+        }
+      }
+    });
+
+    // Processar despesas
+    despSnapshot.forEach((doc) => {
+      const desp = doc.data();
+      if (desp.status === "Pago") {
+        const data = desp.vencimento;
+        if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
+          totalSaidas += desp.valor;
+          fluxoHTML += `
+            <tr>
+              <td>${data}</td>
+              <td>Saída</td>
+              <td>${desp.descricao}</td>
+              <td class="valor-saida">-R$ ${desp.valor.toFixed(2)}</td>
+            </tr>
+          `;
+        }
+      }
+    });
+
+    const saldo = totalEntradas - totalSaidas;
+
+    document.getElementById("totalEntradas").innerText = "R$ " + totalEntradas.toFixed(2);
+    document.getElementById("totalSaidas").innerText = "R$ " + totalSaidas.toFixed(2);
+    document.getElementById("saldoAtual").innerText = "R$ " + saldo.toFixed(2);
+    document.getElementById("listaFluxoCaixa").innerHTML = fluxoHTML;
+  }).catch((erro) => {
+    console.error("Erro ao atualizar fluxo de caixa:", erro);
+  });
 }
 
 // ===========================
@@ -1007,144 +1287,138 @@ function atualizarFluxoCaixa() {
 // ===========================
 
 function carregarFinanceiro() {
-  db.collection("clientes")
-    .onSnapshot((clienteSnapshot) => {
-      db.collection("recebimentos")
-        .onSnapshot((recebSnapshot) => {
-          db.collection("despesas")
-            .onSnapshot((despSnapshot) => {
-              db.collection("mensalidades")
-                .onSnapshot((mensalidadeSnapshot) => {
-                  let faturamentoMes = 0;
-                  let totalRecebido = 0;
-                  let totalAberto = 0;
-                  let totalVencido = 0;
-                  let totalDespesas = 0;
-                  let clientesInadimplentes = 0;
-                  let valorInadimplente = 0;
-                  let recebidoQtd = 0;
-                  let abertoQtd = 0;
-                  let vencidoQtd = 0;
-                  let despesasQtd = 0;
-                  let receitaPrevista = 0;
-                  let receitaRecebidaMes = 0;
-                  let receitaPendente = 0;
-                  let receitaAtraso = 0;
+  // Clean up existing listeners
+  financeiroListeners.forEach(listener => listener());
+  financeiroListeners = [];
 
-                  const dataAtual = new Date();
-                  const mesAtual = dataAtual.getMonth();
-                  const anoAtual = dataAtual.getFullYear();
+  // Use Promise.all to fetch all data at once instead of nested onSnapshot
+  Promise.all([
+    db.collection("clientes").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("recebimentos").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("despesas").where("usuarioId", "==", auth.currentUser.uid).get(),
+    db.collection("mensalidades").where("usuarioId", "==", auth.currentUser.uid).get()
+  ]).then(([clienteSnapshot, recebSnapshot, despSnapshot, mensalidadeSnapshot]) => {
+    let faturamentoMes = 0;
+    let totalRecebido = 0;
+    let totalAberto = 0;
+    let totalVencido = 0;
+    let totalDespesas = 0;
+    let clientesInadimplentes = 0;
+    let valorInadimplente = 0;
+    let recebidoQtd = 0;
+    let abertoQtd = 0;
+    let vencidoQtd = 0;
+    let despesasQtd = 0;
+    let receitaPrevista = 0;
+    let receitaRecebidaMes = 0;
+    let receitaPendente = 0;
+    let receitaAtraso = 0;
 
-                  // Calcular faturamento mensal (clientes ativos)
-                  clienteSnapshot.forEach((doc) => {
-                    const cliente = doc.data();
-                    if (cliente.status === "Ativo") {
-                      faturamentoMes += Number(cliente.valor) || 0;
-                      receitaPrevista += Number(cliente.valor) || 0;
-                    }
-                    if (cliente.status === "Inadimplente") {
-                      clientesInadimplentes++;
-                    }
-                  });
+    const dataAtual = new Date();
+    const mesAtual = dataAtual.getMonth();
+    const anoAtual = dataAtual.getFullYear();
 
-                  // Processar recebimentos manuais
-                  recebSnapshot.forEach((doc) => {
-                    const receb = doc.data();
-                    if (receb.status === "Pago") {
-                      totalRecebido += receb.valor;
-                      recebidoQtd++;
-                      
-                      // Verificar se é do mês atual
-                      const dataPagamento = new Date(receb.vencimento);
-                      if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
-                        receitaRecebidaMes += receb.valor;
-                      }
-                    } else if (receb.status === "Pendente") {
-                      totalAberto += receb.valor;
-                      abertoQtd++;
-                      receitaPendente += receb.valor;
-                    } else if (receb.status === "Atrasado") {
-                      totalVencido += receb.valor;
-                      valorInadimplente += receb.valor;
-                      vencidoQtd++;
-                      receitaAtraso += receb.valor;
-                    }
-                  });
-
-                  // Processar mensalidades recorrentes
-                  mensalidadeSnapshot.forEach((doc) => {
-                    const mens = doc.data();
-                    if (mens.status === "Pago") {
-                      totalRecebido += mens.valor;
-                      recebidoQtd++;
-                      
-                      // Verificar se é do mês atual
-                      const dataPagamento = new Date(mens.dataPagamento || mens.vencimento);
-                      if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
-                        receitaRecebidaMes += mens.valor;
-                      }
-                    } else if (mens.status === "Em Aberto") {
-                      totalAberto += mens.valor;
-                      abertoQtd++;
-                      receitaPendente += mens.valor;
-                      
-                      // Verificar se está vencido
-                      const dataVencimento = new Date(mens.vencimento);
-                      if (dataVencimento < dataAtual) {
-                        totalVencido += mens.valor;
-                        vencidoQtd++;
-                        receitaAtraso += mens.valor;
-                      }
-                    } else if (mens.status === "Atrasado") {
-                      totalVencido += mens.valor;
-                      valorInadimplente += mens.valor;
-                      vencidoQtd++;
-                      receitaAtraso += mens.valor;
-                    }
-                  });
-
-              // Processar despesas
-              despSnapshot.forEach((doc) => {
-                const desp = doc.data();
-                if (desp.status === "Pago") {
-                  totalDespesas += desp.valor;
-                } else {
-                  despesasQtd++;
-                }
-              });
-
-              const lucroLiquido = totalRecebido - totalDespesas;
-
-              // Atualizar elementos do Dashboard Financeiro
-              document.getElementById("faturamentoMes").innerText = "R$ " + faturamentoMes.toFixed(2);
-              document.getElementById("totalRecebido").innerText = "R$ " + totalRecebido.toFixed(2);
-              document.getElementById("totalAberto").innerText = "R$ " + totalAberto.toFixed(2);
-              document.getElementById("totalDespesas").innerText = "R$ " + totalDespesas.toFixed(2);
-              document.getElementById("lucroLiquido").innerText = "R$ " + lucroLiquido.toFixed(2);
-              document.getElementById("totalInadimplentes").innerText = clientesInadimplentes;
-              document.getElementById("valorInadimplentes").innerText = "R$ " + valorInadimplente.toFixed(2) + " em atraso";
-              document.getElementById("recebidoQtd").innerText = recebidoQtd + " cobranças pagas";
-              document.getElementById("abertoQtd").innerText = abertoQtd + " cobranças pendentes";
-              document.getElementById("despesasQtd").innerText = despesasQtd + " despesas este mês";
-
-              // Atualizar novos elementos do Dashboard Principal
-              document.getElementById("receitaRecebidaMes").innerText = "R$ " + receitaRecebidaMes.toFixed(2);
-              document.getElementById("receitaPendente").innerText = "R$ " + receitaPendente.toFixed(2);
-              document.getElementById("receitaAtraso").innerText = "R$ " + receitaAtraso.toFixed(2);
-
-              carregarInadimplentes();
-            }, (erro) => {
-              console.error("Erro ao carregar mensalidades:", erro);
-            });
-          }, (erro) => {
-            console.error("Erro ao carregar despesas:", erro);
-          });
-        }, (erro) => {
-          console.error("Erro ao carregar recebimentos:", erro);
-        });
-    }, (erro) => {
-      console.error("Erro ao carregar clientes:", erro);
+    // Calcular faturamento mensal (clientes ativos)
+    clienteSnapshot.forEach((doc) => {
+      const cliente = doc.data();
+      if (cliente.status === "Ativo") {
+        faturamentoMes += Number(cliente.valor) || 0;
+        receitaPrevista += Number(cliente.valor) || 0;
+      }
+      if (cliente.status === "Inadimplente") {
+        clientesInadimplentes++;
+      }
     });
+
+    // Processar recebimentos manuais
+    recebSnapshot.forEach((doc) => {
+      const receb = doc.data();
+      if (receb.status === "Pago") {
+        totalRecebido += receb.valor;
+        recebidoQtd++;
+        
+        // Verificar se é do mês atual
+        const dataPagamento = new Date(receb.vencimento);
+        if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
+          receitaRecebidaMes += receb.valor;
+        }
+      } else if (receb.status === "Pendente") {
+        totalAberto += receb.valor;
+        abertoQtd++;
+        receitaPendente += receb.valor;
+      } else if (receb.status === "Atrasado") {
+        totalVencido += receb.valor;
+        valorInadimplente += receb.valor;
+        vencidoQtd++;
+        receitaAtraso += receb.valor;
+      }
+    });
+
+    // Processar mensalidades recorrentes
+    mensalidadeSnapshot.forEach((doc) => {
+      const mens = doc.data();
+      if (mens.status === "Pago") {
+        totalRecebido += mens.valor;
+        recebidoQtd++;
+        
+        // Verificar se é do mês atual
+        const dataPagamento = new Date(mens.dataPagamento || mens.vencimento);
+        if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
+          receitaRecebidaMes += mens.valor;
+        }
+      } else if (mens.status === "Em Aberto") {
+        totalAberto += mens.valor;
+        abertoQtd++;
+        receitaPendente += mens.valor;
+        
+        // Verificar se está vencido
+        const dataVencimento = new Date(mens.vencimento);
+        if (dataVencimento < dataAtual) {
+          totalVencido += mens.valor;
+          vencidoQtd++;
+          receitaAtraso += mens.valor;
+        }
+      } else if (mens.status === "Atrasado") {
+        totalVencido += mens.valor;
+        valorInadimplente += mens.valor;
+        vencidoQtd++;
+        receitaAtraso += mens.valor;
+      }
+    });
+
+    // Processar despesas
+    despSnapshot.forEach((doc) => {
+      const desp = doc.data();
+      if (desp.status === "Pago") {
+        totalDespesas += desp.valor;
+      } else {
+        despesasQtd++;
+      }
+    });
+
+    const lucroLiquido = totalRecebido - totalDespesas;
+
+    // Atualizar elementos do Dashboard Financeiro
+    document.getElementById("faturamentoMes").innerText = "R$ " + faturamentoMes.toFixed(2);
+    document.getElementById("totalRecebido").innerText = "R$ " + totalRecebido.toFixed(2);
+    document.getElementById("totalAberto").innerText = "R$ " + totalAberto.toFixed(2);
+    document.getElementById("totalDespesas").innerText = "R$ " + totalDespesas.toFixed(2);
+    document.getElementById("lucroLiquido").innerText = "R$ " + lucroLiquido.toFixed(2);
+    document.getElementById("totalInadimplentes").innerText = clientesInadimplentes;
+    document.getElementById("valorInadimplentes").innerText = "R$ " + valorInadimplente.toFixed(2) + " em atraso";
+    document.getElementById("recebidoQtd").innerText = recebidoQtd + " cobranças pagas";
+    document.getElementById("abertoQtd").innerText = abertoQtd + " cobranças pendentes";
+    document.getElementById("despesasQtd").innerText = despesasQtd + " despesas este mês";
+
+    // Atualizar novos elementos do Dashboard Principal
+    document.getElementById("receitaRecebidaMes").innerText = "R$ " + receitaRecebidaMes.toFixed(2);
+    document.getElementById("receitaPendente").innerText = "R$ " + receitaPendente.toFixed(2);
+    document.getElementById("receitaAtraso").innerText = "R$ " + receitaAtraso.toFixed(2);
+
+    carregarInadimplentes();
+  }).catch((erro) => {
+    console.error("Erro ao carregar financeiro:", erro);
+  });
 }
 
 // ===========================
@@ -1161,6 +1435,7 @@ function carregarInadimplentes() {
 
   // Carregar mensalidades atrasadas
   db.collection("mensalidades")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .where("status", "==", "Atrasado")
     .onSnapshot((mensalidadeSnapshot) => {
       mensalidadeSnapshot.forEach((doc) => {
@@ -1199,6 +1474,7 @@ function carregarInadimplentes() {
 
   // Carregar recebimentos manuais atrasados
   db.collection("recebimentos")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .where("status", "==", "Atrasado")
     .onSnapshot((snapshot) => {
       snapshot.forEach((doc) => {
@@ -1296,20 +1572,38 @@ function logout() {
 
 auth.onAuthStateChanged((user) => {
   if (user) {
-    document.getElementById("loginTela").style.display = "none";
-    document.getElementById("sistema").style.display = "flex";
-    mostrarSecao("dashboard");
-    carregarClientes();
-    carregarPlanos();
-    carregarFinanceiro();
-    carregarPlanosSelect();
-    carregarRecebimentos();
-    carregarDespesas();
-    atualizarFluxoCaixa();
-    verificarGeracaoMensalidades();
-    carregarClientesWhatsApp();
-    carregarConfiguracoesWhatsApp();
-    carregarHistoricoWhatsApp();
+    // Carregar dados do usuário atual
+    carregarDadosUsuario(user.uid).then((dadosUsuario) => {
+      usuarioAtual = {
+        uid: user.uid,
+        nome: dadosUsuario.nome || user.displayName || "",
+        email: user.email,
+        role: dadosUsuario.role || "cliente"
+      };
+
+      document.getElementById("loginTela").style.display = "none";
+      document.getElementById("sistema").style.display = "flex";
+      mostrarSecao("dashboard");
+      
+      // Mostrar menu de admin se for admin
+      if (usuarioAtual.role === "admin") {
+        document.getElementById("btnAdmin").style.display = "flex";
+        carregarDashboardAdmin();
+        carregarUsuariosAdmin();
+      }
+      
+      carregarClientes();
+      carregarPlanos();
+      carregarFinanceiro();
+      carregarPlanosSelect();
+      carregarRecebimentos();
+      carregarDespesas();
+      atualizarFluxoCaixa();
+      verificarGeracaoMensalidades();
+      carregarClientesWhatsApp();
+      carregarConfiguracoesWhatsApp();
+      carregarHistoricoWhatsApp();
+    });
   } else {
     document.getElementById("loginTela").style.display = "flex";
     document.getElementById("sistema").style.display = "none";
@@ -1329,6 +1623,15 @@ let configuracoesWhatsApp = {
   apiProvider: "",
   apiKey: "",
   apiUrl: ""
+};
+
+// Global variables for Admin
+let usuarioEditando = null;
+let usuarioAtual = {
+  uid: "",
+  nome: "",
+  email: "",
+  role: "cliente"
 };
 
 // ===========================
@@ -1361,6 +1664,7 @@ function mostrarAbaWhatsApp(aba) {
 
 function carregarClientesWhatsApp() {
   db.collection("clientes")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("nome")
     .onSnapshot((snapshot) => {
       clientesWhatsApp = [];
@@ -1737,6 +2041,7 @@ function identificarCobrancasPendentes() {
   tabela.innerHTML = "";
   
   db.collection("mensalidades")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .where("status", "==", "Em Aberto")
     .onSnapshot((snapshot) => {
       tabela.innerHTML = "";
@@ -1947,6 +2252,7 @@ function salvarHistoricoWhatsApp(cliente, mensagem, tipo, status) {
   
   db.collection("whatsapp_historico")
     .add({
+      usuarioId: auth.currentUser.uid,
       clienteId: cliente.id,
       clienteNome: cliente.nome,
       clienteTelefone: cliente.telefone,
@@ -1964,6 +2270,7 @@ function salvarHistoricoWhatsApp(cliente, mensagem, tipo, status) {
 
 function carregarHistoricoWhatsApp() {
   db.collection("whatsapp_historico")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .orderBy("timestamp", "desc")
     .limit(100)
     .onSnapshot((snapshot) => {
@@ -2032,6 +2339,7 @@ function limparHistoricoWhatsApp() {
   }
   
   db.collection("whatsapp_historico")
+    .where("usuarioId", "==", auth.currentUser.uid)
     .get()
     .then((snapshot) => {
       const batch = db.batch();
@@ -2146,3 +2454,615 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 });
+
+// ===========================
+// ADMIN MODULE
+// ===========================
+
+// ===========================
+// ADMIN TAB NAVIGATION
+// ===========================
+
+function mostrarAbaAdmin(aba) {
+  document.querySelectorAll(".abaAdmin").forEach(abaa => {
+    abaa.style.display = "none";
+    abaa.classList.remove("ativa");
+  });
+  
+  const abaElement = document.getElementById("admin-" + aba);
+  abaElement.style.display = "block";
+  abaElement.classList.add("ativa");
+
+  document.querySelectorAll(".adminTabBtn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  event.target.classList.add("active");
+
+  if (aba === "dashboard") {
+    carregarDashboardAdmin();
+  } else if (aba === "usuarios") {
+    carregarUsuariosAdmin();
+  }
+}
+
+// ===========================
+// ADMIN USER DATA LOADING
+// ===========================
+
+async function carregarDadosUsuario(uid) {
+  try {
+    const doc = await db.collection("usuarios").doc(uid).get();
+    if (doc.exists) {
+      return doc.data();
+    } else {
+      // Se não existir, criar documento básico
+      const dadosBasicos = {
+        uid: uid,
+        nome: "",
+        email: auth.currentUser.email,
+        role: "cliente",
+        status: "Ativo",
+        plano: "Básico",
+        criadoEm: new Date()
+      };
+      await db.collection("usuarios").doc(uid).set(dadosBasicos);
+      return dadosBasicos;
+    }
+  } catch (erro) {
+    console.error("Erro ao carregar dados do usuário:", erro);
+    return {
+      uid: uid,
+      email: auth.currentUser.email,
+      role: "cliente",
+      status: "Ativo"
+    };
+  }
+}
+
+// ===========================
+// ADMIN DASHBOARD
+// ===========================
+
+function carregarDashboardAdmin() {
+  db.collection("usuarios")
+    .onSnapshot((snapshot) => {
+      let totalUsuarios = 0;
+      let usuariosAtivos = 0;
+      let usuariosBloqueados = 0;
+      let receitaMensal = 0;
+      let novosCadastros = 0;
+      
+      const dataAtual = new Date();
+      const mesAtual = dataAtual.getMonth();
+      const anoAtual = dataAtual.getFullYear();
+
+      const tabelaUltimos = document.getElementById("listaUltimosUsuarios");
+      tabelaUltimos.innerHTML = "";
+
+      snapshot.forEach((doc) => {
+        const usuario = doc.data();
+        totalUsuarios++;
+
+        if (usuario.status === "Ativo") {
+          usuariosAtivos++;
+        } else if (usuario.status === "Bloqueado") {
+          usuariosBloqueados++;
+        }
+
+        // Calcular receita mensal usando configuracoesSistema
+        const valorPlano = configuracoesSistema.planos[usuario.plano] || 0;
+        receitaMensal += valorPlano;
+
+        // Verificar se é cadastro novo do mês atual
+        if (usuario.criadoEm) {
+          const dataCadastro = usuario.criadoEm.toDate ? usuario.criadoEm.toDate() : new Date(usuario.criadoEm);
+          if (dataCadastro.getMonth() === mesAtual && dataCadastro.getFullYear() === anoAtual) {
+            novosCadastros++;
+          }
+        }
+      });
+
+      // Atualizar indicadores
+      document.getElementById("admin_total_usuarios").innerText = totalUsuarios;
+      document.getElementById("admin_usuarios_ativos").innerText = usuariosAtivos;
+      document.getElementById("admin_usuarios_bloqueados").innerText = usuariosBloqueados;
+      document.getElementById("admin_receita_mensal").innerText = "R$ " + receitaMensal.toFixed(2);
+      document.getElementById("admin_novos_cadastros").innerText = novosCadastros;
+
+      // Carregar últimos 5 usuários
+      snapshot.docs.slice(-5).reverse().forEach((doc) => {
+        const usuario = doc.data();
+        tabelaUltimos.innerHTML += `
+          <tr>
+            <td>${usuario.nome || ""}</td>
+            <td>${usuario.empresa || ""}</td>
+            <td>${usuario.email || ""}</td>
+            <td>${usuario.plano || ""}</td>
+            <td><span class="status-${usuario.status.toLowerCase()}">${usuario.status}</span></td>
+            <td>${usuario.criadoEm ? new Date(usuario.criadoEm.toDate ? usuario.criadoEm.toDate() : usuario.criadoEm).toLocaleDateString('pt-BR') : ""}</td>
+          </tr>
+        `;
+      });
+    }, (erro) => {
+      console.error("Erro ao carregar dashboard admin:", erro);
+    });
+}
+
+// ===========================
+// ADMIN USER MANAGEMENT
+// ===========================
+
+function carregarUsuariosAdmin() {
+  db.collection("usuarios")
+    .orderBy("criadoEm", "desc")
+    .onSnapshot((snapshot) => {
+      const tabela = document.getElementById("listaUsuariosAdmin");
+      tabela.innerHTML = "";
+
+      snapshot.forEach((doc) => {
+        const usuario = doc.data();
+        
+        tabela.innerHTML += `
+          <tr>
+            <td>${usuario.nome || ""}</td>
+            <td>${usuario.empresa || ""}</td>
+            <td>${usuario.email || ""}</td>
+            <td>${usuario.telefone || ""}</td>
+            <td>${usuario.plano || ""}</td>
+            <td><span class="status-${usuario.status.toLowerCase()}">${usuario.status}</span></td>
+            <td>${usuario.role || "cliente"}</td>
+            <td>${usuario.criadoEm ? new Date(usuario.criadoEm.toDate ? usuario.criadoEm.toDate() : usuario.criadoEm).toLocaleDateString('pt-BR') : ""}</td>
+            <td>
+              <button onclick="editarUsuario('${doc.id}')" title="Editar">
+                <i class="fas fa-pencil"></i>
+              </button>
+              <button onclick="redefinirSenhaUsuario('${doc.id}')" title="Redefinir Senha">
+                <i class="fas fa-key"></i>
+              </button>
+              ${usuario.status === "Ativo" ? 
+                `<button onclick="bloquearUsuario('${doc.id}')" title="Bloquear">
+                  <i class="fas fa-lock"></i>
+                </button>` :
+                `<button onclick="ativarUsuario('${doc.id}')" title="Ativar">
+                  <i class="fas fa-unlock"></i>
+                </button>`
+              }
+              <button onclick="excluirUsuario('${doc.id}')" title="Excluir">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+    }, (erro) => {
+      console.error("Erro ao carregar usuários admin:", erro);
+    });
+}
+
+function filtrarUsuarios() {
+  const busca = document.getElementById("admin_busca_usuario").value.toLowerCase();
+  const status = document.getElementById("admin_filtro_status").value;
+  const plano = document.getElementById("admin_filtro_plano").value;
+  
+  const linhas = document.querySelectorAll("#listaUsuariosAdmin tr");
+  
+  linhas.forEach((linha) => {
+    const nome = linha.cells[0].textContent.toLowerCase();
+    const empresa = linha.cells[1].textContent.toLowerCase();
+    const email = linha.cells[2].textContent.toLowerCase();
+    const statusLinha = linha.cells[5].textContent;
+    const planoLinha = linha.cells[4].textContent;
+
+    const matchBusca = nome.includes(busca) || empresa.includes(busca) || email.includes(busca);
+    const matchStatus = status === "" || statusLinha.includes(status);
+    const matchPlano = plano === "" || planoLinha === plano;
+
+    linha.style.display = matchBusca && matchStatus && matchPlano ? "" : "none";
+  });
+}
+
+// ===========================
+// ADMIN USER MODAL
+// ===========================
+
+function abrirModalUsuario() {
+  document.getElementById("modalUsuario").style.display = "flex";
+  document.getElementById("modalUsuarioTitulo").innerText = "Novo Usuário";
+  limparFormularioUsuario();
+  usuarioEditando = null;
+}
+
+function fecharModalUsuario() {
+  document.getElementById("modalUsuario").style.display = "none";
+  limparFormularioUsuario();
+  usuarioEditando = null;
+}
+
+function limparFormularioUsuario() {
+  document.getElementById("admin_usuario_id").value = "";
+  document.getElementById("admin_usuario_nome").value = "";
+  document.getElementById("admin_usuario_empresa").value = "";
+  document.getElementById("admin_usuario_email").value = "";
+  document.getElementById("admin_usuario_telefone").value = "";
+  document.getElementById("admin_usuario_plano").selectedIndex = 0;
+  document.getElementById("admin_usuario_role").selectedIndex = 0;
+  document.getElementById("admin_usuario_status").selectedIndex = 0;
+}
+
+async function salvarUsuario() {
+  const id = document.getElementById("admin_usuario_id").value;
+  const nome = document.getElementById("admin_usuario_nome").value;
+  const empresa = document.getElementById("admin_usuario_empresa").value;
+  const email = document.getElementById("admin_usuario_email").value;
+  const telefone = document.getElementById("admin_usuario_telefone").value;
+  const plano = document.getElementById("admin_usuario_plano").value;
+  const role = document.getElementById("admin_usuario_role").value;
+  const status = document.getElementById("admin_usuario_status").value;
+
+  if (!nome || !email) {
+    alert("Preencha pelo menos: Nome e E-mail!");
+    return;
+  }
+
+  try {
+    if (id) {
+      // Editar usuário existente
+      await db.collection("usuarios").doc(id).update({
+        nome,
+        empresa,
+        telefone,
+        plano,
+        role,
+        status
+      });
+      alert("Usuário atualizado com sucesso!");
+    } else {
+      // Criar novo usuário no Firebase Auth
+      const senhaGerada = Math.random().toString(36).slice(-8);
+      const userCredential = await auth.createUserWithEmailAndPassword(email, senhaGerada);
+      
+      // Salvar dados na coleção usuarios
+      await db.collection("usuarios").doc(userCredential.user.uid).set({
+        uid: userCredential.user.uid,
+        nome,
+        empresa,
+        email,
+        telefone,
+        plano,
+        role,
+        status,
+        criadoEm: new Date()
+      });
+      
+      alert(`Usuário criado com sucesso!\nE-mail: ${email}\nSenha temporária: ${senhaGerada}`);
+    }
+
+    fecharModalUsuario();
+    carregarUsuariosAdmin();
+    carregarDashboardAdmin();
+  } catch (erro) {
+    alert("Erro: " + erro.message);
+  }
+}
+
+async function editarUsuario(id) {
+  try {
+    const doc = await db.collection("usuarios").doc(id).get();
+    const usuario = doc.data();
+
+    usuarioEditando = id;
+    document.getElementById("modalUsuario").style.display = "flex";
+    document.getElementById("modalUsuarioTitulo").innerText = "Editar Usuário";
+    
+    document.getElementById("admin_usuario_id").value = id;
+    document.getElementById("admin_usuario_nome").value = usuario.nome || "";
+    document.getElementById("admin_usuario_empresa").value = usuario.empresa || "";
+    document.getElementById("admin_usuario_email").value = usuario.email || "";
+    document.getElementById("admin_usuario_telefone").value = usuario.telefone || "";
+    document.getElementById("admin_usuario_plano").value = usuario.plano || "";
+    document.getElementById("admin_usuario_role").value = usuario.role || "cliente";
+    document.getElementById("admin_usuario_status").value = usuario.status || "";
+  } catch (erro) {
+    alert("Erro: " + erro.message);
+  }
+}
+
+async function bloquearUsuario(id) {
+  if (!confirm("Deseja bloquear este usuário?")) {
+    return;
+  }
+
+  try {
+    await db.collection("usuarios").doc(id).update({
+      status: "Bloqueado"
+    });
+    await auth.updateUser(id, { disabled: true });
+    alert("Usuário bloqueado com sucesso!");
+    carregarUsuariosAdmin();
+    carregarDashboardAdmin();
+  } catch (erro) {
+    alert("Erro: " + erro.message);
+  }
+}
+
+async function ativarUsuario(id) {
+  if (!confirm("Deseja ativar este usuário?")) {
+    return;
+  }
+
+  try {
+    await db.collection("usuarios").doc(id).update({
+      status: "Ativo"
+    });
+    await auth.updateUser(id, { disabled: false });
+    alert("Usuário ativado com sucesso!");
+    carregarUsuariosAdmin();
+    carregarDashboardAdmin();
+  } catch (erro) {
+    alert("Erro: " + erro.message);
+  }
+}
+
+async function excluirUsuario(id) {
+  if (!confirm("Deseja excluir este usuário? Esta ação não pode ser desfeita.")) {
+    return;
+  }
+
+  try {
+    await db.collection("usuarios").doc(id).delete();
+    await auth.deleteUser(id);
+    alert("Usuário excluído com sucesso!");
+    carregarUsuariosAdmin();
+    carregarDashboardAdmin();
+  } catch (erro) {
+    alert("Erro: " + erro.message);
+  }
+}
+
+async function redefinirSenhaUsuario(id) {
+  try {
+    const doc = await db.collection("usuarios").doc(id).get();
+    const usuario = doc.data();
+    
+    if (!confirm(`Deseja enviar e-mail de redefinição de senha para ${usuario.email}?`)) {
+      return;
+    }
+
+    await auth.sendPasswordResetEmail(usuario.email);
+    alert(`E-mail de redefinição de senha enviado para ${usuario.email}`);
+  } catch (erro) {
+    alert("Erro: " + erro.message);
+  }
+}
+
+// ===========================
+// DATA MIGRATION
+// ===========================
+
+async function migrarDadosExistentes() {
+  if (!auth.currentUser) {
+    alert("Você precisa estar logado para executar a migração.");
+    return;
+  }
+
+  if (!confirm("Esta ação adicionará seu usuarioId a todos os dados existentes sem usuarioId.\n\nDeseja continuar?")) {
+    return;
+  }
+
+  const uid = auth.currentUser.uid;
+  let totalMigrados = 0;
+  let erros = 0;
+
+  try {
+    // Migrar clientes
+    const clientesSnapshot = await db.collection("clientes").get();
+    const batchClientes = db.batch();
+    
+    clientesSnapshot.forEach((doc) => {
+      const cliente = doc.data();
+      if (!cliente.usuarioId) {
+        batchClientes.update(doc.ref, { usuarioId: uid });
+        totalMigrados++;
+      }
+    });
+    
+    if (totalMigrados > 0) {
+      await batchClientes.commit();
+      alert(`${totalMigrados} clientes migrados com sucesso!`);
+    } else {
+      alert("Nenhum cliente para migrar.");
+    }
+
+    // Migrar planos
+    const planosSnapshot = await db.collection("planos").get();
+    const batchPlanos = db.batch();
+    let planosMigrados = 0;
+    
+    planosSnapshot.forEach((doc) => {
+      const plano = doc.data();
+      if (!plano.usuarioId) {
+        batchPlanos.update(doc.ref, { usuarioId: uid });
+        planosMigrados++;
+      }
+    });
+    
+    if (planosMigrados > 0) {
+      await batchPlanos.commit();
+      alert(`${planosMigrados} planos migrados com sucesso!`);
+    }
+
+    // Migrar recebimentos
+    const recebimentosSnapshot = await db.collection("recebimentos").get();
+    const batchRecebimentos = db.batch();
+    let recebimentosMigrados = 0;
+    
+    recebimentosSnapshot.forEach((doc) => {
+      const recebimento = doc.data();
+      if (!recebimento.usuarioId) {
+        batchRecebimentos.update(doc.ref, { usuarioId: uid });
+        recebimentosMigrados++;
+      }
+    });
+    
+    if (recebimentosMigrados > 0) {
+      await batchRecebimentos.commit();
+      alert(`${recebimentosMigrados} recebimentos migrados com sucesso!`);
+    }
+
+    // Migrar despesas
+    const despesasSnapshot = await db.collection("despesas").get();
+    const batchDespesas = db.batch();
+    let despesasMigradas = 0;
+    
+    despesasSnapshot.forEach((doc) => {
+      const despesa = doc.data();
+      if (!despesa.usuarioId) {
+        batchDespesas.update(doc.ref, { usuarioId: uid });
+        despesasMigradas++;
+      }
+    });
+    
+    if (despesasMigradas > 0) {
+      await batchDespesas.commit();
+      alert(`${despesasMigradas} despesas migradas com sucesso!`);
+    }
+
+    // Migrar mensalidades
+    const mensalidadesSnapshot = await db.collection("mensalidades").get();
+    const batchMensalidades = db.batch();
+    let mensalidadesMigradas = 0;
+    
+    mensalidadesSnapshot.forEach((doc) => {
+      const mensalidade = doc.data();
+      if (!mensalidade.usuarioId) {
+        batchMensalidades.update(doc.ref, { usuarioId: uid });
+        mensalidadesMigradas++;
+      }
+    });
+    
+    if (mensalidadesMigradas > 0) {
+      await batchMensalidades.commit();
+      alert(`${mensalidadesMigradas} mensalidades migradas com sucesso!`);
+    }
+
+    // Migrar whatsapp_historico
+    const whatsappSnapshot = await db.collection("whatsapp_historico").get();
+    const batchWhatsapp = db.batch();
+    let whatsappMigrados = 0;
+    
+    whatsappSnapshot.forEach((doc) => {
+      const historico = doc.data();
+      if (!historico.usuarioId) {
+        batchWhatsapp.update(doc.ref, { usuarioId: uid });
+        whatsappMigrados++;
+      }
+    });
+    
+    if (whatsappMigrados > 0) {
+      await batchWhatsapp.commit();
+      alert(`${whatsappMigrados} registros de WhatsApp migrados com sucesso!`);
+    }
+
+    alert(`Migração concluída!\n\nTotal de registros migrados: ${totalMigrados + planosMigrados + recebimentosMigrados + despesasMigradas + mensalidadesMigradas + whatsappMigrados}`);
+    
+    // Recarregar dados
+    location.reload();
+  } catch (erro) {
+    alert("Erro durante a migração: " + erro.message);
+  }
+}
+
+// ===========================
+// CALCULADORA ÓPTICA FTTH
+// ===========================
+
+function addSplitter() {
+  const div = document.createElement("div");
+  div.className = "splitter-container";
+
+  div.innerHTML = `
+    <select class="splitter">
+      <option value="0">Sem splitter</option>
+      <option value="3.5">1:2</option>
+      <option value="7">1:4</option>
+      <option value="10.5">1:8</option>
+      <option value="13.5">1:16</option>
+      <option value="17">1:32</option>
+    </select>
+    <button class="remove-btn" onclick="removeSplitter(this)">✕</button>
+  `;
+
+  document.getElementById("calc_splitters").appendChild(div);
+}
+
+function removeSplitter(btn) {
+  const container = btn.parentElement;
+  if (document.querySelectorAll("#calc_splitters .splitter-container").length > 1) {
+    container.remove();
+  }
+}
+
+function calcularFTTH() {
+  const olt = parseFloat(document.getElementById("calc_olt").value);
+  const km = parseFloat(document.getElementById("calc_km").value);
+  const lossKm = parseFloat(document.getElementById("calc_lossKm").value);
+  const conn = parseInt(document.getElementById("calc_conn").value);
+  const lossConn = parseFloat(document.getElementById("calc_lossConn").value);
+  const threshold = parseFloat(document.getElementById("calc_threshold").value);
+
+  // Validação
+  if (isNaN(olt) || isNaN(km) || isNaN(lossKm) || isNaN(conn) || isNaN(lossConn)) {
+    document.getElementById("calc_resultado").innerHTML = `
+      <div class="calcResultado calcResultadoErro">
+        <p>⚠️ Preencha todos os campos com valores válidos</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (km < 0 || conn < 0 || lossKm < 0 || lossConn < 0) {
+    document.getElementById("calc_resultado").innerHTML = `
+      <div class="calcResultado calcResultadoErro">
+        <p>⚠️ Valores negativos não são permitidos</p>
+      </div>
+    `;
+    return;
+  }
+
+  // fibra
+  let perdaTotal = km * lossKm;
+
+  // conectores
+  perdaTotal += conn * lossConn;
+
+  // splitters em cascata
+  const splitters = document.querySelectorAll("#calc_splitters .splitter");
+
+  let cadeia = [];
+
+  splitters.forEach(s => {
+    const val = parseFloat(s.value);
+    if (val > 0) {
+      perdaTotal += val;
+      cadeia.push(val);
+    }
+  });
+
+  const final = olt - perdaTotal;
+
+  let status = final >= threshold ? "🟢 OK (Dentro do padrão)" : "🔴 RUIM (Perda alta)";
+  let statusClass = final >= threshold ? "calcResultadoSucesso" : "calcResultadoErro";
+
+  document.getElementById("calc_resultado").innerHTML = `
+    <div class="calcResultado ${statusClass}">
+      <p>📡 OLT: ${olt} dBm</p>
+      <p>📉 Perda fibra: ${(km * lossKm).toFixed(2)} dB</p>
+      <p>🔌 Conectores: ${(conn * lossConn).toFixed(2)} dB</p>
+      <p>🔀 Splitters: ${cadeia.join(" + ") || 0} dB</p>
+      <hr style="margin: 15px 0; border: none; border-top: 1px solid rgba(255,255,255,0.1);">
+      <h3>⚡ Potência final: ${final.toFixed(2)} dBm</h3>
+      <h3>${status}</h3>
+      <p style="margin-top: 10px; font-size: 12px; color: rgba(255,255,255,0.7);">Perda total: ${perdaTotal.toFixed(2)} dB</p>
+    </div>
+  `;
+}

@@ -60,6 +60,14 @@
           <i class="fab fa-whatsapp"></i>
           <span>WhatsApp</span>
         </button>
+        <button class="navBtn" onclick="mostrarSecao('calculadora-optica')">
+          <i class="fas fa-network-wired"></i>
+          <span>Calculadora Óptica</span>
+        </button>
+        <button class="navBtn navBtnAdmin" onclick="mostrarSecao('administracao')" id="btnAdmin" style="display:none;">
+          <i class="fas fa-shield-alt"></i>
+          <span>Administração</span>
+        </button>
       </nav>
 
       <div class="sidebarBottom">
@@ -138,6 +146,13 @@
             </div>
             <h3>Receita em Atraso</h3>
             <h2 id="receitaAtraso">R$ 0</h2>
+          </div>
+          <div class="card" onclick="mostrarSecao('calculadora-optica')" style="cursor: pointer; background: linear-gradient(135deg, #22c55e, #16a34a);">
+            <div class="cardIcon">
+              <i class="fas fa-network-wired"></i>
+            </div>
+            <h3>Calculadora Óptica</h3>
+            <p style="font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 5px;">Ferramentas FTTH</p>
           </div>
         </div>
       </section>
@@ -845,6 +860,246 @@ Atenciosamente,
 
       </section>
 
+      <!-- CALCULADORA ÓPTICA -->
+      <section id="calculadora-optica" class="secao" style="display:none;">
+        <h1>Calculadora Óptica FTTH</h1>
+        <p style="color: #9ca3af; margin-bottom: 30px;">Ferramentas para cálculos e dimensionamento de redes de fibra óptica.</p>
+
+        <div class="calculadoraOpticaContainer">
+          <div class="calculadoraOpticaCard">
+            <h2><i class="fas fa-network-wired"></i> Simulador FTTH (OLT → Cliente)</h2>
+            
+            <div class="calculadoraGrid">
+              <div class="calculadoraField">
+                <label>Potência OLT (dBm)</label>
+                <input id="calc_olt" type="number" value="2" step="0.1">
+              </div>
+
+              <div class="calculadoraField">
+                <label>Distância total (km)</label>
+                <input id="calc_km" type="number" value="5" step="0.1">
+              </div>
+
+              <div class="calculadoraField">
+                <label>Perda por km</label>
+                <input id="calc_lossKm" type="number" value="0.35" step="0.01">
+              </div>
+
+              <div class="calculadoraField">
+                <label>Conectores</label>
+                <input id="calc_conn" type="number" value="4" step="1">
+              </div>
+
+              <div class="calculadoraField">
+                <label>Perda por conector</label>
+                <input id="calc_lossConn" type="number" value="0.2" step="0.01">
+              </div>
+
+              <div class="calculadoraField">
+                <label>Threshold mínimo (dBm)</label>
+                <input id="calc_threshold" type="number" value="-28" step="0.1">
+              </div>
+            </div>
+
+            <h3 style="margin-top: 25px; margin-bottom: 15px; color: #9ca3af; font-size: 14px;">Splitters em cascata</h3>
+
+            <div id="calc_splitters">
+              <div class="splitter-container">
+                <select class="splitter">
+                  <option value="0">Sem splitter</option>
+                  <option value="3.5">1:2</option>
+                  <option value="7">1:4</option>
+                  <option value="10.5">1:8</option>
+                  <option value="13.5">1:16</option>
+                  <option value="17">1:32</option>
+                </select>
+                <button class="remove-btn" onclick="removeSplitter(this)">✕</button>
+              </div>
+            </div>
+
+            <div class="calculadoraButtons">
+              <button onclick="addSplitter()" class="btnSecundario">
+                <i class="fas fa-plus"></i> Adicionar Splitter
+              </button>
+              <button onclick="calcularFTTH()" class="btnPrimario">
+                <i class="fas fa-calculator"></i> Simular Rede
+              </button>
+            </div>
+
+            <div id="calc_resultado"></div>
+          </div>
+
+          <div class="calculadoraInfoCard">
+            <h3><i class="fas fa-info-circle"></i> Valores de Referência</h3>
+            <table class="calculadoraTable">
+              <thead>
+                <tr>
+                  <th>Componente</th>
+                  <th>Perda Típica</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Fibra (km)</td>
+                  <td>0.35 dB/km</td>
+                </tr>
+                <tr>
+                  <td>Conector</td>
+                  <td>0.2 dB</td>
+                </tr>
+                <tr>
+                  <td>Splitter 1:2</td>
+                  <td>3.5 dB</td>
+                </tr>
+                <tr>
+                  <td>Splitter 1:4</td>
+                  <td>7 dB</td>
+                </tr>
+                <tr>
+                  <td>Splitter 1:8</td>
+                  <td>10.5 dB</td>
+                </tr>
+                <tr>
+                  <td>Splitter 1:16</td>
+                  <td>13.5 dB</td>
+                </tr>
+                <tr>
+                  <td>Splitter 1:32</td>
+                  <td>17 dB</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style="margin-top: 30px;"><i class="fas fa-lightbulb"></i> Dicas</h3>
+            <ul class="calculadoraTips">
+              <li>Use valores típicos para cálculos preliminares</li>
+              <li>Considere margem de segurança de 2-3 dB</li>
+              <li>Verifique especificações do fabricante</li>
+              <li>Threshold padrão: -28 dBm (GPON)</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ADMINISTRAÇÃO -->
+      <section id="administracao" class="secao" style="display:none;">
+        <h1>Administração</h1>
+        
+        <!-- TABS DE NAVEGAÇÃO ADMIN -->
+        <div class="adminTabs">
+          <button class="adminTabBtn active" onclick="mostrarAbaAdmin('dashboard')">
+            <i class="fas fa-chart-line"></i> Dashboard
+          </button>
+          <button class="adminTabBtn" onclick="mostrarAbaAdmin('usuarios')">
+            <i class="fas fa-users-cog"></i> Usuários
+          </button>
+        </div>
+
+        <!-- ABA DASHBOARD ADMIN -->
+        <div id="admin-dashboard" class="abaAdmin ativa" style="display:block;">
+          <div class="headerAba">
+            <h2>Dashboard Administrativo</h2>
+            <div class="headerAbaButtons">
+              <button onclick="migrarDadosExistentes()" class="btnSecundario" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                <i class="fas fa-database"></i> Migrar Dados Existentes
+              </button>
+            </div>
+          </div>
+
+          <div class="adminCards">
+            <div class="adminStatCard adminStatTotal">
+              <h4><i class="fas fa-users"></i> Total de Usuários</h4>
+              <h2 id="admin_total_usuarios">0</h2>
+              <p>usuários cadastrados</p>
+            </div>
+            <div class="adminStatCard adminStatAtivos">
+              <h4><i class="fas fa-user-check"></i> Usuários Ativos</h4>
+              <h2 id="admin_usuarios_ativos">0</h2>
+              <p>usuários ativos</p>
+            </div>
+            <div class="adminStatCard adminStatBloqueados">
+              <h4><i class="fas fa-user-lock"></i> Usuários Bloqueados</h4>
+              <h2 id="admin_usuarios_bloqueados">0</h2>
+              <p>usuários bloqueados</p>
+            </div>
+            <div class="adminStatCard adminStatReceita">
+              <h4><i class="fas fa-dollar-sign"></i> Receita Mensal</h4>
+              <h2 id="admin_receita_mensal">R$ 0</h2>
+              <p>receita do SaaS</p>
+            </div>
+            <div class="adminStatCard adminStatNovos">
+              <h4><i class="fas fa-user-plus"></i> Novos Cadastros</h4>
+              <h2 id="admin_novos_cadastros">0</h2>
+              <p>este mês</p>
+            </div>
+          </div>
+
+          <div class="tableContainer">
+            <h3>Últimos Usuários Cadastrados</h3>
+            <table class="tabelaAdmin">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Empresa</th>
+                  <th>E-mail</th>
+                  <th>Plano</th>
+                  <th>Status</th>
+                  <th>Data Cadastro</th>
+                </tr>
+              </thead>
+              <tbody id="listaUltimosUsuarios"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ABA USUÁRIOS -->
+        <div id="admin-usuarios" class="abaAdmin" style="display:none;">
+          <div class="headerAba">
+            <h2>Gerenciamento de Usuários</h2>
+            <div class="headerAbaButtons">
+              <button onclick="abrirModalUsuario()" class="btnPrimario">
+                <i class="fas fa-plus"></i> Novo Usuário
+              </button>
+            </div>
+          </div>
+
+          <div class="filtrosAdmin">
+            <input type="text" id="admin_busca_usuario" placeholder="Buscar por nome ou e-mail..." onkeyup="filtrarUsuarios()">
+            <select id="admin_filtro_status" onchange="filtrarUsuarios()">
+              <option value="">Todos os status</option>
+              <option value="Ativo">Ativo</option>
+              <option value="Bloqueado">Bloqueado</option>
+            </select>
+            <select id="admin_filtro_plano" onchange="filtrarUsuarios()">
+              <option value="">Todos os planos</option>
+              <option value="Básico">Básico</option>
+              <option value="Pro">Pro</option>
+              <option value="Enterprise">Enterprise</option>
+            </select>
+          </div>
+
+          <div class="tableContainer">
+            <table class="tabelaAdmin">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Empresa</th>
+                  <th>E-mail</th>
+                  <th>Telefone</th>
+                  <th>Plano</th>
+                  <th>Status</th>
+                  <th>Role</th>
+                  <th>Data Cadastro</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="listaUsuariosAdmin"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
     </main>
 
   </div>
@@ -964,6 +1219,72 @@ Atenciosamente,
         <button onclick="fecharModalDespesa()" class="btnSecundario">Cancelar</button>
         <button onclick="salvarDespesa()" class="btnPrimario">
           <i class="fas fa-save"></i> Salvar Despesa
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!-- MODAL - USUÁRIO -->
+  <!-- ============================= -->
+  <div id="modalUsuario" class="modal" style="display:none;">
+    <div class="modalContent">
+      <div class="modalHeader">
+        <h2 id="modalUsuarioTitulo">Novo Usuário</h2>
+        <button onclick="fecharModalUsuario()" class="btnFechar">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modalBody">
+        <input type="hidden" id="admin_usuario_id">
+        
+        <input 
+          type="text" 
+          id="admin_usuario_nome" 
+          placeholder="Nome completo"
+        >
+
+        <input 
+          type="text" 
+          id="admin_usuario_empresa" 
+          placeholder="Nome da empresa"
+        >
+
+        <input 
+          type="email" 
+          id="admin_usuario_email" 
+          placeholder="E-mail"
+        >
+
+        <input 
+          type="tel" 
+          id="admin_usuario_telefone" 
+          placeholder="Telefone"
+        >
+
+        <select id="admin_usuario_plano">
+          <option value="">Selecione o plano</option>
+          <option value="Básico">Básico - R$ 49,90/mês</option>
+          <option value="Pro">Pro - R$ 99,90/mês</option>
+          <option value="Enterprise">Enterprise - R$ 199,90/mês</option>
+        </select>
+
+        <select id="admin_usuario_role">
+          <option value="cliente">Cliente</option>
+          <option value="admin">Administrador</option>
+        </select>
+
+        <select id="admin_usuario_status">
+          <option value="Ativo">Ativo</option>
+          <option value="Bloqueado">Bloqueado</option>
+        </select>
+      </div>
+
+      <div class="modalFooter">
+        <button onclick="fecharModalUsuario()" class="btnSecundario">Cancelar</button>
+        <button onclick="salvarUsuario()" class="btnPrimario">
+          <i class="fas fa-save"></i> Salvar Usuário
         </button>
       </div>
     </div>
