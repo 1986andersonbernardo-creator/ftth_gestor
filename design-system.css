@@ -849,6 +849,31 @@
 }
 
 /* ========================================
+   ADMIN ACTIONS
+   ======================================== */
+
+.adminActions {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.adminActions h3 {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+}
+
+.adminActions button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ========================================
    RESPONSIVE BREAKPOINTS
    ======================================== */
 

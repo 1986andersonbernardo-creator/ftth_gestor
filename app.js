@@ -2940,25 +2940,53 @@ async function redefinirSenhaUsuario(id) {
 }
 
 // ===========================
-// DATA MIGRATION
+// DATA MIGRATION (ADMIN ONLY)
 // ===========================
 
 async function migrarDadosExistentes() {
+  // Verificar se o usuário está logado
   if (!auth.currentUser) {
     alert("Você precisa estar logado para executar a migração.");
     return;
   }
 
-  if (!confirm("Esta ação adicionará seu usuarioId a todos os dados existentes sem usuarioId.\n\nDeseja continuar?")) {
+  // Verificar se o usuário é administrador
+  if (usuarioAtual.role !== "admin") {
+    alert("Apenas administradores podem executar a migração de dados.");
+    return;
+  }
+
+  // Confirmar migração
+  if (!confirm(
+    "⚠️ ATENÇÃO: Migração de Dados Antigos\n\n" +
+    "Esta ação irá associar TODOS os registros sem usuarioId ao seu usuário administrador.\n\n" +
+    "Coleções que serão migradas:\n" +
+    "• clientes\n" +
+    "• planos\n" +
+    "• mensalidades\n" +
+    "• recebimentos\n" +
+    "• despesas\n" +
+    "• whatsapp_historico\n\n" +
+    "Esta ação é irreversível. Deseja continuar?"
+  )) {
     return;
   }
 
   const uid = auth.currentUser.uid;
-  let totalMigrados = 0;
-  let erros = 0;
+  const resultados = {
+    clientes: 0,
+    planos: 0,
+    mensalidades: 0,
+    recebimentos: 0,
+    despesas: 0,
+    whatsapp_historico: 0,
+    total: 0,
+    erros: []
+  };
 
   try {
     // Migrar clientes
+    console.log("Migrando clientes...");
     const clientesSnapshot = await db.collection("clientes").get();
     const batchClientes = db.batch();
     
@@ -2966,113 +2994,132 @@ async function migrarDadosExistentes() {
       const cliente = doc.data();
       if (!cliente.usuarioId) {
         batchClientes.update(doc.ref, { usuarioId: uid });
-        totalMigrados++;
+        resultados.clientes++;
       }
     });
     
-    if (totalMigrados > 0) {
+    if (resultados.clientes > 0) {
       await batchClientes.commit();
-      alert(`${totalMigrados} clientes migrados com sucesso!`);
-    } else {
-      alert("Nenhum cliente para migrar.");
+      console.log(`${resultados.clientes} clientes migrados.`);
     }
 
     // Migrar planos
+    console.log("Migrando planos...");
     const planosSnapshot = await db.collection("planos").get();
     const batchPlanos = db.batch();
-    let planosMigrados = 0;
     
     planosSnapshot.forEach((doc) => {
       const plano = doc.data();
       if (!plano.usuarioId) {
         batchPlanos.update(doc.ref, { usuarioId: uid });
-        planosMigrados++;
+        resultados.planos++;
       }
     });
     
-    if (planosMigrados > 0) {
+    if (resultados.planos > 0) {
       await batchPlanos.commit();
-      alert(`${planosMigrados} planos migrados com sucesso!`);
-    }
-
-    // Migrar recebimentos
-    const recebimentosSnapshot = await db.collection("recebimentos").get();
-    const batchRecebimentos = db.batch();
-    let recebimentosMigrados = 0;
-    
-    recebimentosSnapshot.forEach((doc) => {
-      const recebimento = doc.data();
-      if (!recebimento.usuarioId) {
-        batchRecebimentos.update(doc.ref, { usuarioId: uid });
-        recebimentosMigrados++;
-      }
-    });
-    
-    if (recebimentosMigrados > 0) {
-      await batchRecebimentos.commit();
-      alert(`${recebimentosMigrados} recebimentos migrados com sucesso!`);
-    }
-
-    // Migrar despesas
-    const despesasSnapshot = await db.collection("despesas").get();
-    const batchDespesas = db.batch();
-    let despesasMigradas = 0;
-    
-    despesasSnapshot.forEach((doc) => {
-      const despesa = doc.data();
-      if (!despesa.usuarioId) {
-        batchDespesas.update(doc.ref, { usuarioId: uid });
-        despesasMigradas++;
-      }
-    });
-    
-    if (despesasMigradas > 0) {
-      await batchDespesas.commit();
-      alert(`${despesasMigradas} despesas migradas com sucesso!`);
+      console.log(`${resultados.planos} planos migrados.`);
     }
 
     // Migrar mensalidades
+    console.log("Migrando mensalidades...");
     const mensalidadesSnapshot = await db.collection("mensalidades").get();
     const batchMensalidades = db.batch();
-    let mensalidadesMigradas = 0;
     
     mensalidadesSnapshot.forEach((doc) => {
       const mensalidade = doc.data();
       if (!mensalidade.usuarioId) {
         batchMensalidades.update(doc.ref, { usuarioId: uid });
-        mensalidadesMigradas++;
+        resultados.mensalidades++;
       }
     });
     
-    if (mensalidadesMigradas > 0) {
+    if (resultados.mensalidades > 0) {
       await batchMensalidades.commit();
-      alert(`${mensalidadesMigradas} mensalidades migradas com sucesso!`);
+      console.log(`${resultados.mensalidades} mensalidades migradas.`);
+    }
+
+    // Migrar recebimentos
+    console.log("Migrando recebimentos...");
+    const recebimentosSnapshot = await db.collection("recebimentos").get();
+    const batchRecebimentos = db.batch();
+    
+    recebimentosSnapshot.forEach((doc) => {
+      const recebimento = doc.data();
+      if (!recebimento.usuarioId) {
+        batchRecebimentos.update(doc.ref, { usuarioId: uid });
+        resultados.recebimentos++;
+      }
+    });
+    
+    if (resultados.recebimentos > 0) {
+      await batchRecebimentos.commit();
+      console.log(`${resultados.recebimentos} recebimentos migrados.`);
+    }
+
+    // Migrar despesas
+    console.log("Migrando despesas...");
+    const despesasSnapshot = await db.collection("despesas").get();
+    const batchDespesas = db.batch();
+    
+    despesasSnapshot.forEach((doc) => {
+      const despesa = doc.data();
+      if (!despesa.usuarioId) {
+        batchDespesas.update(doc.ref, { usuarioId: uid });
+        resultados.despesas++;
+      }
+    });
+    
+    if (resultados.despesas > 0) {
+      await batchDespesas.commit();
+      console.log(`${resultados.despesas} despesas migradas.`);
     }
 
     // Migrar whatsapp_historico
+    console.log("Migrando whatsapp_historico...");
     const whatsappSnapshot = await db.collection("whatsapp_historico").get();
     const batchWhatsapp = db.batch();
-    let whatsappMigrados = 0;
     
     whatsappSnapshot.forEach((doc) => {
       const historico = doc.data();
       if (!historico.usuarioId) {
         batchWhatsapp.update(doc.ref, { usuarioId: uid });
-        whatsappMigrados++;
+        resultados.whatsapp_historico++;
       }
     });
     
-    if (whatsappMigrados > 0) {
+    if (resultados.whatsapp_historico > 0) {
       await batchWhatsapp.commit();
-      alert(`${whatsappMigrados} registros de WhatsApp migrados com sucesso!`);
+      console.log(`${resultados.whatsapp_historico} registros de WhatsApp migrados.`);
     }
 
-    alert(`Migração concluída!\n\nTotal de registros migrados: ${totalMigrados + planosMigrados + recebimentosMigrados + despesasMigradas + mensalidadesMigradas + whatsappMigrados}`);
+    // Calcular total
+    resultados.total = resultados.clientes + resultados.planos + resultados.mensalidades + 
+                      resultados.recebimentos + resultados.despesas + resultados.whatsapp_historico;
+
+    // Exibir resultado
+    const mensagem = 
+      "✅ Migração Concluída com Sucesso!\n\n" +
+      "Resumo da Migração:\n" +
+      `• Clientes: ${resultados.clientes}\n` +
+      `• Planos: ${resultados.planos}\n` +
+      `• Mensalidades: ${resultados.mensalidades}\n` +
+      `• Recebimentos: ${resultados.recebimentos}\n` +
+      `• Despesas: ${resultados.despesas}\n` +
+      `• WhatsApp Histórico: ${resultados.whatsapp_historico}\n\n` +
+      `Total de registros migrados: ${resultados.total}\n\n` +
+      "Todos os registros antigos agora pertencem ao seu usuário administrador.";
+    
+    alert(mensagem);
+    
+    // Registrar auditoria
+    await registrarAuditoria("migracao_dados", `Migração de ${resultados.total} registros antigos para admin ${uid}`);
     
     // Recarregar dados
     location.reload();
   } catch (erro) {
-    alert("Erro durante a migração: " + erro.message);
+    console.error("Erro durante a migração:", erro);
+    alert("❌ Erro durante a migração: " + erro.message);
   }
 }
 
