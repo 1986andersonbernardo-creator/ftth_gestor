@@ -355,6 +355,165 @@
 }
 
 /* ========================================
+   SIDEBAR ANIMATIONS
+   ======================================== */
+
+.sidebar-nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background: var(--gradient-primary);
+  transform: scaleY(0);
+  transition: transform var(--transition-base);
+  border-radius: 0 4px 4px 0;
+}
+
+.sidebar-nav-item:hover::before,
+.sidebar-nav-item.active::before {
+  transform: scaleY(1);
+}
+
+.sidebar-nav-item {
+  transition: all var(--transition-base);
+}
+
+.sidebar-nav-item:hover {
+  background: var(--bg-tertiary);
+  transform: translateX(4px);
+}
+
+.sidebar-nav-item.active {
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+/* Sidebar icon animation */
+.sidebar-nav-item i {
+  transition: transform var(--transition-base);
+}
+
+.sidebar-nav-item:hover i {
+  transform: scale(1.1);
+}
+
+/* ========================================
+   HEADER ANIMATIONS
+   ======================================== */
+
+.header-search {
+  position: relative;
+  transition: all var(--transition-base);
+}
+
+.header-search:focus-within {
+  transform: scale(1.02);
+}
+
+.header-search input {
+  transition: all var(--transition-base);
+}
+
+.header-search input:focus {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ========================================
+   CARD ANIMATIONS
+   ======================================== */
+
+.card-premium {
+  animation: cardFadeIn 0.4s ease-out;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-premium:hover {
+  animation: cardPulse 0.3s ease-out;
+}
+
+@keyframes cardPulse {
+  0% {
+    transform: translateY(-4px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(-4px);
+  }
+}
+
+/* ========================================
+   BUTTON ANIMATIONS
+   ======================================== */
+
+.btn-premium {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-premium::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-premium:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* ========================================
+   TABLE ANIMATIONS
+   ======================================== */
+
+.table-premium tbody tr {
+  transition: all var(--transition-base);
+}
+
+.table-premium tbody tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: scale(1.01);
+}
+
+/* ========================================
+   INPUT ANIMATIONS
+   ======================================== */
+
+.input-premium {
+  transition: all var(--transition-base);
+}
+
+.input-premium:focus {
+  transform: translateY(-2px);
+}
+
+/* ========================================
    RESPONSIVE BREAKPOINTS
    ======================================== */
 
