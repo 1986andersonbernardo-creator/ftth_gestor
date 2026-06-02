@@ -438,6 +438,51 @@
   font-size: 14px;
   color: var(--text-muted);
   max-width: 400px;
+  margin-bottom: var(--space-lg);
+}
+
+.empty-state-action {
+  margin-top: var(--space-md);
+}
+
+/* Empty State Variations */
+
+.empty-state-no-data {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
+}
+
+.empty-state-no-results {
+  background: transparent;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
+}
+
+.empty-state-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
+}
+
+.empty-state-error .empty-state-icon {
+  color: var(--danger);
+  opacity: 0.3;
+}
+
+.empty-state-success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
+}
+
+.empty-state-success .empty-state-icon {
+  color: var(--success);
+  opacity: 0.3;
 }
 
 /* ========================================
