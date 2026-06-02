@@ -377,10 +377,20 @@ function carregarClientes() {
     clientesListener();
   }
 
-  let query = db.collection("clientes")
-    .where("usuarioId", "==", auth.currentUser.uid)
-    .orderBy("nome")
-    .limit(configuracoesSistema.paginacao.clientes);
+  // Se for admin, carregar todos os clientes (com e sem usuarioId) para diagnóstico
+  // Se não for admin, carregar apenas clientes com seu usuarioId
+  let query;
+  if (usuarioAtual.role === "admin") {
+    console.log("Usuário é admin, carregando todos os clientes para diagnóstico");
+    query = db.collection("clientes")
+      .orderBy("nome")
+      .limit(configuracoesSistema.paginacao.clientes);
+  } else {
+    query = db.collection("clientes")
+      .where("usuarioId", "==", auth.currentUser.uid)
+      .orderBy("nome")
+      .limit(configuracoesSistema.paginacao.clientes);
+  }
 
   if (clientesLastDoc) {
     query = query.startAfter(clientesLastDoc);
@@ -400,14 +410,22 @@ function carregarClientes() {
       const cliente = doc.data();
       totalClientes++;
 
+      // Se não for admin e o cliente não tiver seu usuarioId, pular
+      if (usuarioAtual.role !== "admin" && cliente.usuarioId !== auth.currentUser.uid) {
+        return;
+      }
+
       if (cliente.status === "Ativo") {
         clientesAtivos++;
         faturamentoTotal += Number(cliente.valor) || 0;
       }
 
+      // Adicionar indicador se não tiver usuarioId
+      const semUsuarioId = !cliente.usuarioId ? '<span style="color: red; font-size: 12px;">⚠️ Sem usuarioId</span>' : '';
+
       tabela.innerHTML += `
         <tr>
-          <td>${cliente.nome || ""}</td>
+          <td>${cliente.nome || ""} ${semUsuarioId}</td>
           <td>${cliente.telefone || ""}</td>
           <td>${cliente.status || ""}</td>
           <td>${cliente.plano || ""}</td>
@@ -564,56 +582,82 @@ function salvarPlano() {
 }
 
 function carregarPlanos() {
-  db.collection("planos")
-    .where("usuarioId", "==", auth.currentUser.uid)
-    .orderBy("nome")
-    .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaPlanos");
-      tabela.innerHTML = "";
+  // Se for admin, carregar todos os planos (com e sem usuarioId)
+  // Se não for admin, carregar apenas planos com seu usuarioId
+  let query;
+  if (usuarioAtual.role === "admin") {
+    query = db.collection("planos").orderBy("nome");
+  } else {
+    query = db.collection("planos").where("usuarioId", "==", auth.currentUser.uid).orderBy("nome");
+  }
 
-      snapshot.forEach((doc) => {
-        const plano = doc.data();
+  query.onSnapshot((snapshot) => {
+    const tabela = document.getElementById("listaPlanos");
+    tabela.innerHTML = "";
 
-        tabela.innerHTML += `
-          <tr>
-            <td>${plano.nome || ""}</td>
-            <td>${plano.velocidade || ""}</td>
-            <td>R$ ${Number(plano.valor).toFixed(2)}</td>
-            <td>
-              <button onclick="editarPlano('${doc.id}')">
-                <i class="fas fa-pencil"></i> Editar
-              </button>
-              <button onclick="excluirPlano('${doc.id}')">
-                <i class="fas fa-trash"></i> Excluir
-              </button>
-            </td>
-          </tr>
-        `;
-      });
-    }, (erro) => {
-      console.error("Erro ao carregar planos:", erro);
+    snapshot.forEach((doc) => {
+      const plano = doc.data();
+      
+      // Se não for admin e o plano não tiver seu usuarioId, pular
+      if (usuarioAtual.role !== "admin" && plano.usuarioId !== auth.currentUser.uid) {
+        return;
+      }
+
+      // Adicionar indicador se não tiver usuarioId
+      const semUsuarioId = !plano.usuarioId ? '<span style="color: red; font-size: 12px;">⚠️ Sem usuarioId</span>' : '';
+
+      tabela.innerHTML += `
+        <tr>
+          <td>${plano.nome || ""} ${semUsuarioId}</td>
+          <td>${plano.velocidade || ""}</td>
+          <td>R$ ${Number(plano.valor).toFixed(2)}</td>
+          <td>
+            <button onclick="editarPlano('${doc.id}')">
+              <i class="fas fa-pencil"></i> Editar
+            </button>
+            <button onclick="excluirPlano('${doc.id}')">
+              <i class="fas fa-trash"></i> Excluir
+            </button>
+          </td>
+        </tr>
+      `;
     });
+  }, (erro) => {
+    console.error("Erro ao carregar planos:", erro);
+  });
 }
 
 function carregarPlanosSelect() {
   const select = document.getElementById("plano");
 
-  db.collection("planos")
-    .where("usuarioId", "==", auth.currentUser.uid)
-    .orderBy("nome")
-    .onSnapshot((snapshot) => {
-      select.innerHTML = '<option value="">Selecione um plano</option>';
+  // Se for admin, carregar todos os planos (com e sem usuarioId)
+  // Se não for admin, carregar apenas planos com seu usuarioId
+  let query;
+  if (usuarioAtual.role === "admin") {
+    query = db.collection("planos").orderBy("nome");
+  } else {
+    query = db.collection("planos").where("usuarioId", "==", auth.currentUser.uid).orderBy("nome");
+  }
 
-      snapshot.forEach((doc) => {
-        const plano = doc.data();
-        const option = document.createElement("option");
-        option.value = plano.nome;
-        option.textContent = `${plano.nome} - ${plano.velocidade} - R$ ${Number(plano.valor).toFixed(2)}`;
-        select.appendChild(option);
-      });
-    }, (erro) => {
-      console.error("Erro ao carregar planos select:", erro);
+  query.onSnapshot((snapshot) => {
+    select.innerHTML = '<option value="">Selecione um plano</option>';
+
+    snapshot.forEach((doc) => {
+      const plano = doc.data();
+      
+      // Se não for admin e o plano não tiver seu usuarioId, pular
+      if (usuarioAtual.role !== "admin" && plano.usuarioId !== auth.currentUser.uid) {
+        return;
+      }
+
+      const option = document.createElement("option");
+      option.value = plano.nome;
+      option.textContent = `${plano.nome} - ${plano.velocidade} - R$ ${Number(plano.valor).toFixed(2)}`;
+      select.appendChild(option);
     });
+  }, (erro) => {
+    console.error("Erro ao carregar planos select:", erro);
+  });
 }
 
 async function editarPlano(id) {
