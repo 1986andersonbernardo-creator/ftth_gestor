@@ -1059,11 +1059,17 @@ Atenciosamente,
 
           <div class="adminActions">
             <h3>Ações Administrativas</h3>
-            <button class="btnPrimario btn-premium" onclick="migrarDadosExistentes()">
-              <i class="fas fa-database"></i> Migrar Dados Antigos
-            </button>
+            <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
+              <button class="btnPrimario btn-premium" onclick="diagnosticarDados()">
+                <i class="fas fa-stethoscope"></i> Diagnóstico de Dados
+              </button>
+              <button class="btnPrimario btn-premium" onclick="migrarDadosExistentes()">
+                <i class="fas fa-database"></i> Migrar Dados Antigos
+              </button>
+            </div>
             <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
-              ⚠️ Use apenas se você perdeu acesso a dados cadastrados antes da implementação multi-tenant.
+              ⚠️ Diagnóstico: Verifique o estado dos dados no console (F12).<br>
+              ⚠️ Migração: Use apenas se você perdeu acesso a dados cadastrados antes da implementação multi-tenant.
             </p>
           </div>
 

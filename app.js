@@ -363,6 +363,15 @@ function salvarCliente() {
 }
 
 function carregarClientes() {
+  // Verificar se usuário está logado
+  if (!auth.currentUser) {
+    console.error("Usuário não está logado!");
+    alert("Você precisa estar logado para visualizar clientes.");
+    return;
+  }
+
+  console.log("Carregando clientes para usuarioId:", auth.currentUser.uid);
+
   // Clean up existing listener
   if (clientesListener) {
     clientesListener();
@@ -384,6 +393,8 @@ function carregarClientes() {
     let totalClientes = 0;
     let clientesAtivos = 0;
     let faturamentoTotal = 0;
+
+    console.log("Snapshot de clientes recebido:", snapshot.size, "registros");
 
     snapshot.forEach((doc) => {
       const cliente = doc.data();
@@ -2936,6 +2947,70 @@ async function redefinirSenhaUsuario(id) {
     alert(`E-mail de redefinição de senha enviado para ${usuario.email}`);
   } catch (erro) {
     alert("Erro: " + erro.message);
+  }
+}
+
+// ===========================
+// DIAGNÓSTICO DE DADOS
+// ===========================
+
+async function diagnosticarDados() {
+  if (!auth.currentUser) {
+    alert("Você precisa estar logado para executar o diagnóstico.");
+    return;
+  }
+
+  const uid = auth.currentUser.uid;
+  console.log("=== DIAGNÓSTICO DE DADOS ===");
+  console.log("Usuário atual UID:", uid);
+  console.log("Usuário atual Email:", auth.currentUser.email);
+  console.log("Usuário atual Role:", usuarioAtual.role);
+
+  try {
+    // Verificar total de clientes no banco
+    const todosClientes = await db.collection("clientes").get();
+    console.log("Total de clientes no banco (sem filtro):", todosClientes.size);
+
+    // Verificar clientes com usuarioId do usuário atual
+    const clientesUsuario = await db.collection("clientes").where("usuarioId", "==", uid).get();
+    console.log("Clientes com seu usuarioId:", clientesUsuario.size);
+
+    // Verificar clientes sem usuarioId
+    const clientesSemUsuarioId = await db.collection("clientes").get();
+    let semUsuarioId = 0;
+    clientesSemUsuarioId.forEach((doc) => {
+      const cliente = doc.data();
+      if (!cliente.usuarioId) {
+        semUsuarioId++;
+      }
+    });
+    console.log("Clientes sem usuarioId:", semUsuarioId);
+
+    // Exibir resultado
+    const mensagem = 
+      "=== DIAGNÓSTICO DE DADOS ===\n\n" +
+      `Usuário UID: ${uid}\n` +
+      `Usuário Email: ${auth.currentUser.email}\n` +
+      `Usuário Role: ${usuarioAtual.role}\n\n` +
+      `Total de clientes no banco: ${todosClientes.size}\n` +
+      `Clientes com seu usuarioId: ${clientesUsuario.size}\n` +
+      `Clientes sem usuarioId: ${semUsuarioId}\n\n` +
+      "Verifique o console do navegador (F12) para mais detalhes.";
+    
+    alert(mensagem);
+
+    // Se houver clientes sem usuarioId, perguntar se quer migrar
+    if (semUsuarioId > 0 && usuarioAtual.role === "admin") {
+      if (confirm(`Há ${semUsuarioId} clientes sem usuarioId.\n\nDeseja migrá-los para o seu usuário administrador?`)) {
+        await migrarDadosExistentes();
+      }
+    } else if (semUsuarioId > 0) {
+      alert(`Há ${semUsuarioId} clientes sem usuarioId.\n\nEntre em contato com o administrador para executar a migração.`);
+    }
+
+  } catch (erro) {
+    console.error("Erro no diagnóstico:", erro);
+    alert("Erro ao executar diagnóstico: " + erro.message);
   }
 }
 
