@@ -1586,6 +1586,7 @@ function carregarInadimplentes() {
   let totalInadimplentes = 0;
   let valorTotal = 0;
   const clientesUnicos = new Set();
+  const receitasAtraso = [];
 
   // Carregar mensalidades atrasadas
   db.collection("mensalidades")
@@ -1619,12 +1620,26 @@ function carregarInadimplentes() {
             </td>
           </tr>
         `;
+
+        // Adicionar à lista de receita em atraso
+        receitasAtraso.push({
+          clienteNome: mens.clienteNome,
+          valor: mens.valor,
+          vencimento: mens.vencimento,
+          diasAtraso: diasAtraso,
+          tipo: 'Mensalidade',
+          id: doc.id,
+          telefone: null // Precisa buscar do cliente
+        });
       });
 
       document.getElementById("qntInadimplentes").innerText = clientesUnicos.size;
       document.getElementById("valorTotalAtraso").innerText = "R$ " + valorTotal.toFixed(2);
       document.getElementById("ticketMedioAtraso").innerText = "R$ " +
         (totalInadimplentes > 0 ? (valorTotal / totalInadimplentes).toFixed(2) : "0.00");
+
+      // Atualizar tabela de Receita em Atraso no dashboard
+      atualizarTabelaReceitaAtraso(receitasAtraso);
     }, (erro) => {
       console.error("Erro ao carregar mensalidades atrasadas:", erro);
     });
@@ -1666,6 +1681,20 @@ function carregarInadimplentes() {
                 </td>
               </tr>
             `;
+
+            // Adicionar à lista de receita em atraso
+            receitasAtraso.push({
+              clienteNome: cliente.nome,
+              valor: receb.valor,
+              vencimento: receb.vencimento,
+              diasAtraso: diasAtraso,
+              tipo: 'Manual',
+              id: doc.id,
+              telefone: cliente.telefone
+            });
+
+            // Atualizar tabela de Receita em Atraso no dashboard
+            atualizarTabelaReceitaAtraso(receitasAtraso);
           });
       });
 
@@ -1676,6 +1705,64 @@ function carregarInadimplentes() {
     }, (erro) => {
       console.error("Erro ao carregar inadimplentes:", erro);
     });
+}
+
+function atualizarTabelaReceitaAtraso(receitasAtraso) {
+  const tabela = document.getElementById("listaReceitaAtraso");
+  
+  if (!tabela) return;
+  
+  if (receitasAtraso.length === 0) {
+    tabela.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; color: var(--text-muted);">
+          Nenhum registro em atraso
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tabela.innerHTML = "";
+  
+  // Ordenar por dias de atraso (maior primeiro)
+  receitasAtraso.sort((a, b) => b.diasAtraso - a.diasAtraso);
+
+  receitasAtraso.forEach((receita) => {
+    const telefoneFormatado = receita.telefone ? receita.telefone.replace(/\D/g, '') : '';
+    const whatsappLink = telefoneFormatado ? `https://wa.me/55${telefoneFormatado}` : '#';
+    
+    tabela.innerHTML += `
+      <tr>
+        <td>${receita.clienteNome}</td>
+        <td>R$ ${receita.valor.toFixed(2)}</td>
+        <td>${receita.vencimento}</td>
+        <td><span style="color: var(--danger); font-weight: 600;">${receita.diasAtraso} dias</span></td>
+        <td>
+          <a href="${whatsappLink}" target="_blank" class="btn-premium" style="padding: 6px 12px; font-size: 12px; text-decoration: none; display: inline-block;">
+            <i class="fab fa-whatsapp"></i> WhatsApp
+          </a>
+        </td>
+        <td>
+          <button class="btn-premium" onclick="enviarCobranca('${receita.clienteNome}', '${receita.valor}', '${receita.vencimento}', '${receita.diasAtraso}')" style="padding: 6px 12px; font-size: 12px;">
+            <i class="fas fa-envelope"></i> Cobrar
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+function enviarCobranca(clienteNome, valor, vencimento, diasAtraso) {
+  const mensagem = `Olá ${clienteNome},\n\nGostaríamos de lembrar que você tem uma cobrança de R$ ${valor.toFixed(2)} em atraso há ${diasAtraso} dias (vencimento: ${vencimento}).\n\nPor favor, entre em contato para regularizar sua situação.\n\nObrigado!`;
+  
+  // Copiar mensagem para área de transferência
+  navigator.clipboard.writeText(mensagem).then(() => {
+    alert("Mensagem de cobrança copiada para a área de transferência!\n\nCole no WhatsApp para enviar.");
+  }).catch((erro) => {
+    console.error("Erro ao copiar mensagem:", erro);
+    alert("Erro ao copiar mensagem. Tente novamente.");
+  });
 }
 
 function marcarComoPago(id) {
