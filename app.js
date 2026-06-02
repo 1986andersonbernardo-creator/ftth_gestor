@@ -1464,14 +1464,14 @@ function carregarFinanceiro() {
     let despesasQtd = 0;
     let receitaPrevista = 0;
     let receitaRecebidaMes = 0;
-    let receitaPendente = 0;
+    let receitaAnualProjetada = 0;
     let receitaAtraso = 0;
 
     const dataAtual = new Date();
     const mesAtual = dataAtual.getMonth();
     const anoAtual = dataAtual.getFullYear();
 
-    // Calcular faturamento mensal (clientes ativos)
+    // Calcular faturamento mensal (clientes ativos) e receita anual projetada
     clienteSnapshot.forEach((doc) => {
       const cliente = doc.data();
       if (cliente.status === "Ativo") {
@@ -1482,6 +1482,9 @@ function carregarFinanceiro() {
         clientesInadimplentes++;
       }
     });
+
+    // Receita Anual Projetada = Faturamento mensal × 12 meses
+    receitaAnualProjetada = faturamentoMes * 12;
 
     // Processar recebimentos manuais
     recebSnapshot.forEach((doc) => {
@@ -1498,7 +1501,6 @@ function carregarFinanceiro() {
       } else if (receb.status === "Pendente") {
         totalAberto += receb.valor;
         abertoQtd++;
-        receitaPendente += receb.valor;
       } else if (receb.status === "Atrasado") {
         totalVencido += receb.valor;
         valorInadimplente += receb.valor;
@@ -1522,7 +1524,6 @@ function carregarFinanceiro() {
       } else if (mens.status === "Em Aberto") {
         totalAberto += mens.valor;
         abertoQtd++;
-        receitaPendente += mens.valor;
         
         // Verificar se está vencido
         const dataVencimento = new Date(mens.vencimento);
@@ -1565,7 +1566,7 @@ function carregarFinanceiro() {
 
     // Atualizar novos elementos do Dashboard Principal
     document.getElementById("receitaRecebidaMes").innerText = "R$ " + receitaRecebidaMes.toFixed(2);
-    document.getElementById("receitaPendente").innerText = "R$ " + receitaPendente.toFixed(2);
+    document.getElementById("receitaAnualProjetada").innerText = "R$ " + receitaAnualProjetada.toFixed(2);
     document.getElementById("receitaAtraso").innerText = "R$ " + receitaAtraso.toFixed(2);
 
     carregarInadimplentes();

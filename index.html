@@ -61,9 +61,9 @@
           <i class="fab fa-whatsapp"></i>
           <span>WhatsApp</span>
         </button>
-        <button class="navBtn sidebar-nav-item" onclick="mostrarSecao('calculadora-optica')">
+        <button class="navBtn sidebar-nav-item" onclick="mostrarSecao('engenharia-ftth')">
           <i class="fas fa-network-wired"></i>
-          <span>Calculadora Óptica</span>
+          <span>Engenharia FTTH</span>
         </button>
         <button class="navBtn navBtnAdmin sidebar-nav-item" onclick="mostrarSecao('administracao')" id="btnAdmin" style="display:none;">
           <i class="fas fa-shield-alt"></i>
@@ -112,7 +112,7 @@
 
       <!-- DASHBOARD -->
       <section id="dashboard" class="secao" style="display:none;">
-        <h1>Dashboard</h1>
+        <h1>Dashboard Executivo</h1>
         <div class="cards">
           <div class="card card-premium">
             <div class="cardIcon">
@@ -144,24 +144,18 @@
           </div>
           <div class="card card-premium">
             <div class="cardIcon">
-              <i class="fas fa-money-bill-wave"></i>
-            </div>
-            <h3>Receita Prevista</h3>
-            <h2 id="receitaPrevista">R$ 0</h2>
-          </div>
-          <div class="card card-premium">
-            <div class="cardIcon">
               <i class="fas fa-check-circle"></i>
             </div>
             <h3>Receita Recebida (Mês)</h3>
             <h2 id="receitaRecebidaMes">R$ 0</h2>
           </div>
-          <div class="card card-premium">
+          <div class="card card-premium" style="background: var(--gradient-primary);">
             <div class="cardIcon">
-              <i class="fas fa-clock"></i>
+              <i class="fas fa-chart-line"></i>
             </div>
-            <h3>Receita Pendente</h3>
-            <h2 id="receitaPendente">R$ 0</h2>
+            <h3>Receita Anual Projetada</h3>
+            <h2 id="receitaAnualProjetada">R$ 0</h2>
+            <p style="font-size: 11px; color: rgba(255,255,255,0.8); margin-top: 5px;">Faturamento anual dos clientes ativos</p>
           </div>
           <div class="card card-premium">
             <div class="cardIcon">
@@ -169,13 +163,6 @@
             </div>
             <h3>Receita em Atraso</h3>
             <h2 id="receitaAtraso">R$ 0</h2>
-          </div>
-          <div class="card card-premium" onclick="mostrarSecao('calculadora-optica')" style="cursor: pointer; background: var(--gradient-success);">
-            <div class="cardIcon">
-              <i class="fas fa-network-wired"></i>
-            </div>
-            <h3>Calculadora Óptica</h3>
-            <p style="font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 5px;">Ferramentas FTTH</p>
           </div>
         </div>
       </section>
@@ -883,9 +870,9 @@ Atenciosamente,
 
       </section>
 
-      <!-- CALCULADORA ÓPTICA -->
-      <section id="calculadora-optica" class="secao" style="display:none;">
-        <h1>Calculadora Óptica FTTH</h1>
+      <!-- ENGENHARIA FTTH -->
+      <section id="engenharia-ftth" class="secao" style="display:none;">
+        <h1>Engenharia FTTH</h1>
         <p style="color: #9ca3af; margin-bottom: 30px;">Ferramentas para cálculos e dimensionamento de redes de fibra óptica.</p>
 
         <div class="calculadoraOpticaContainer">
