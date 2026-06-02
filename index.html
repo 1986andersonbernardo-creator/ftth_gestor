@@ -162,24 +162,24 @@
       <section id="clientes" class="secao" style="display:none;">
         <h1>CRM de Clientes</h1>
         <div class="gridClientes">
-          <input id="nome" placeholder="Nome">
-          <input id="cpf" placeholder="CPF/CNPJ">
-          <input id="telefone" placeholder="Telefone">
-          <input id="email" placeholder="E-mail">
-          <input id="endereco" placeholder="Endereço">
-          <input id="bairro" placeholder="Bairro">
-          <input id="cidade" placeholder="Cidade">
-          <input id="cep" placeholder="CEP">
-          <select id="status">
+          <input id="nome" class="input-premium" placeholder="Nome">
+          <input id="cpf" class="input-premium" placeholder="CPF/CNPJ">
+          <input id="telefone" class="input-premium" placeholder="Telefone">
+          <input id="email" class="input-premium" placeholder="E-mail">
+          <input id="endereco" class="input-premium" placeholder="Endereço">
+          <input id="bairro" class="input-premium" placeholder="Bairro">
+          <input id="cidade" class="input-premium" placeholder="Cidade">
+          <input id="cep" class="input-premium" placeholder="CEP">
+          <select id="status" class="input-premium">
             <option value="Ativo">Ativo</option>
             <option value="Inadimplente">Inadimplente</option>
             <option value="Bloqueado">Bloqueado</option>
           </select>
-          <select id="plano" onchange="preencherValorPlano()">
+          <select id="plano" class="input-premium" onchange="preencherValorPlano()">
             <option value="">Selecione um plano</option>
           </select>
-          <input id="valor" type="number" placeholder="Valor">
-          <input id="vencimento" type="number" placeholder="Vencimento">
+          <input id="valor" class="input-premium" type="number" placeholder="Valor">
+          <input id="vencimento" class="input-premium" type="number" placeholder="Vencimento">
         </div>
         <div class="btnGroupClientes">
           <button class="btnPrimario btn-premium" onclick="salvarCliente()">
@@ -210,9 +210,9 @@
       <section id="planos" class="secao" style="display:none;">
         <h1>Planos de Serviço</h1>
         <div class="gridClientes">
-          <input id="nomePlano" placeholder="Nome">
-          <input id="velocidadePlano" placeholder="Velocidade">
-          <input id="valorPlano" placeholder="Valor">
+          <input id="nomePlano" class="input-premium" placeholder="Nome">
+          <input id="velocidadePlano" class="input-premium" placeholder="Velocidade">
+          <input id="valorPlano" class="input-premium" placeholder="Valor">
         </div>
         <div class="btnGroupClientes">
           <button class="btnPrimario" onclick="salvarPlano()">
@@ -1118,13 +1118,14 @@ Atenciosamente,
       </div>
 
       <div class="modalBody">
-        <select id="receb_cliente" placeholder="Selecione um cliente">
+        <select id="receb_cliente" class="input-premium" placeholder="Selecione um cliente">
           <option value="">-- Selecione um cliente --</option>
         </select>
 
         <input 
           type="number" 
           id="receb_valor" 
+          class="input-premium"
           placeholder="Valor (R$)"
           step="0.01"
         >
@@ -1132,9 +1133,10 @@ Atenciosamente,
         <input 
           type="date" 
           id="receb_vencimento"
+          class="input-premium"
         >
 
-        <select id="receb_pagamento">
+        <select id="receb_pagamento" class="input-premium">
           <option value="">Selecione a forma de pagamento</option>
           <option value="Dinheiro">💵 Dinheiro</option>
           <option value="PIX">🔵 PIX</option>
@@ -1143,13 +1145,14 @@ Atenciosamente,
           <option value="Transferencia">🏦 Transferência</option>
         </select>
 
-        <select id="receb_status">
+        <select id="receb_status" class="input-premium">
           <option value="Pendente">⏳ Pendente</option>
           <option value="Pago">✅ Pago</option>
         </select>
 
         <textarea 
           id="receb_observacao" 
+          class="input-premium"
           placeholder="Observações..."
           rows="3"
         ></textarea>
@@ -1180,10 +1183,11 @@ Atenciosamente,
         <input 
           type="text" 
           id="desp_descricao" 
+          class="input-premium"
           placeholder="Descrição da despesa"
         >
 
-        <select id="desp_categoria">
+        <select id="desp_categoria" class="input-premium">
           <option value="">Selecione a categoria</option>
           <option value="Infraestrutura">🏗️ Infraestrutura</option>
           <option value="Pessoal">👥 Pessoal</option>
@@ -1195,6 +1199,7 @@ Atenciosamente,
         <input 
           type="number" 
           id="desp_valor" 
+          class="input-premium"
           placeholder="Valor (R$)"
           step="0.01"
         >
@@ -1202,15 +1207,17 @@ Atenciosamente,
         <input 
           type="date" 
           id="desp_vencimento"
+          class="input-premium"
         >
 
-        <select id="desp_status">
+        <select id="desp_status" class="input-premium">
           <option value="Pendente">⏳ Pendente</option>
           <option value="Pago">✅ Pago</option>
         </select>
 
         <textarea 
           id="desp_observacao" 
+          class="input-premium"
           placeholder="Observações..."
           rows="3"
         ></textarea>
@@ -1243,40 +1250,44 @@ Atenciosamente,
         <input 
           type="text" 
           id="admin_usuario_nome" 
+          class="input-premium"
           placeholder="Nome completo"
         >
 
         <input 
           type="text" 
           id="admin_usuario_empresa" 
+          class="input-premium"
           placeholder="Nome da empresa"
         >
 
         <input 
           type="email" 
           id="admin_usuario_email" 
+          class="input-premium"
           placeholder="E-mail"
         >
 
         <input 
           type="tel" 
           id="admin_usuario_telefone" 
+          class="input-premium"
           placeholder="Telefone"
         >
 
-        <select id="admin_usuario_plano">
+        <select id="admin_usuario_plano" class="input-premium">
           <option value="">Selecione o plano</option>
           <option value="Básico">Básico - R$ 49,90/mês</option>
           <option value="Pro">Pro - R$ 99,90/mês</option>
           <option value="Enterprise">Enterprise - R$ 199,90/mês</option>
         </select>
 
-        <select id="admin_usuario_role">
+        <select id="admin_usuario_role" class="input-premium">
           <option value="cliente">Cliente</option>
           <option value="admin">Administrador</option>
         </select>
 
-        <select id="admin_usuario_status">
+        <select id="admin_usuario_status" class="input-premium">
           <option value="Ativo">Ativo</option>
           <option value="Bloqueado">Bloqueado</option>
         </select>
