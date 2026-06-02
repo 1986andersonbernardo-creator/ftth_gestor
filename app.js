@@ -26,6 +26,50 @@ let whatsappListeners = [];
 let adminListeners = [];
 
 // ===========================
+// THEME MANAGEMENT
+// ===========================
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const currentTheme = html.getAttribute('data-theme');
+  const themeIcon = document.getElementById('themeIcon');
+  
+  if (currentTheme === 'light') {
+    html.setAttribute('data-theme', 'dark');
+    localStorage.setItem('theme', 'dark');
+    if (themeIcon) {
+      themeIcon.classList.remove('fa-sun');
+      themeIcon.classList.add('fa-moon');
+    }
+  } else {
+    html.setAttribute('data-theme', 'light');
+    localStorage.setItem('theme', 'light');
+    if (themeIcon) {
+      themeIcon.classList.remove('fa-moon');
+      themeIcon.classList.add('fa-sun');
+    }
+  }
+}
+
+function initializeTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  const html = document.documentElement;
+  const themeIcon = document.getElementById('themeIcon');
+  
+  html.setAttribute('data-theme', savedTheme);
+  
+  if (themeIcon) {
+    if (savedTheme === 'light') {
+      themeIcon.classList.remove('fa-moon');
+      themeIcon.classList.add('fa-sun');
+    } else {
+      themeIcon.classList.remove('fa-sun');
+      themeIcon.classList.add('fa-moon');
+    }
+  }
+}
+
+// ===========================
 // SECURITY - INPUT SANITIZATION
 // ===========================
 
@@ -228,6 +272,9 @@ function fazerLogin() {
       document.getElementById("loginTela").style.display = "none";
       document.getElementById("sistema").style.display = "flex";
       mostrarSecao("dashboard");
+      
+      // Initialize theme
+      initializeTheme();
       
       await carregarConfiguracoesSistema();
       await registrarAuditoria("login", "Usuário fez login");
