@@ -27,6 +27,87 @@
       <button onclick="fazerLogin()">
         <i class="fas fa-sign-in-alt"></i> Entrar
       </button>
+      <button class="btnCadastro" onclick="mostrarCadastro()">
+        <i class="fas fa-user-plus"></i> Cadastre-se
+      </button>
+      <p class="loginFooter">&copy; 2026 ControlISP. Todos os direitos reservados.</p>
+    </div>
+  </div>
+
+  <!-- CADASTRO -->
+  <div class="loginTela" id="cadastroTela" style="display:none;">
+    <div class="loginBox cadastroBox">
+      <img src="./img/logo.png" class="logoSidebar" alt="ControlISP Pro">
+      <h2>Criar Conta</h2>
+      <p class="loginSubtitle">Preencha os dados para criar sua conta gratuita</p>
+
+      <div class="cadastroGrid">
+        <input type="text" id="cad_nomeEmpresa" placeholder="Nome da Empresa *" class="input-premium">
+        <input type="text" id="cad_responsavel" placeholder="Nome do Responsável *" class="input-premium">
+        
+        <div class="inputWithIcon">
+          <i class="fab fa-whatsapp"></i>
+          <input type="tel" id="cad_whatsappPrincipal" placeholder="WhatsApp Principal *" class="input-premium" maxlength="16">
+        </div>
+        
+        <div class="inputWithIcon">
+          <i class="fab fa-whatsapp"></i>
+          <input type="tel" id="cad_whatsappSecundario" placeholder="WhatsApp Secundário" class="input-premium" maxlength="16">
+        </div>
+
+        <input type="email" id="cad_email" placeholder="E-mail *" class="input-premium">
+
+        <div class="inputWithIcon senhaWrapper">
+          <input type="password" id="cad_senha" placeholder="Senha *" class="input-premium" minlength="6">
+          <button type="button" class="toggleSenha" onclick="toggleSenhaVisibilidade('cad_senha', this)" tabindex="-1">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+
+        <div class="inputWithIcon senhaWrapper">
+          <input type="password" id="cad_confirmarSenha" placeholder="Confirmar Senha *" class="input-premium" minlength="6">
+          <button type="button" class="toggleSenha" onclick="toggleSenhaVisibilidade('cad_confirmarSenha', this)" tabindex="-1">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+
+        <div class="passwordStrengthBar" id="passwordStrengthBar">
+          <div class="passwordStrengthIndicator" id="passwordStrengthIndicator"></div>
+        </div>
+        <span class="passwordStrengthText" id="passwordStrengthText"></span>
+
+        <input type="text" id="cad_cidade" placeholder="Cidade" class="input-premium">
+        
+        <select id="cad_estado" class="input-premium">
+          <option value="">Estado (UF)</option>
+          <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+          <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+          <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+          <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+          <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+          <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+          <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+          <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+          <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+        </select>
+
+        <input type="text" id="cad_cpfCnpj" placeholder="CPF/CNPJ" class="input-premium" maxlength="18">
+      </div>
+
+      <div class="cadastroMsgErro" id="cadastroMsgErro" style="display:none;"></div>
+      <div class="cadastroMsgSucesso" id="cadastroMsgSucesso" style="display:none;"></div>
+
+      <div class="cadastroLoading" id="cadastroLoading" style="display:none;">
+        <div class="loading-spinner"></div>
+        <span>Criando sua conta...</span>
+      </div>
+
+      <button class="btnPrimario" onclick="cadastrarUsuario()" id="btnCriarConta">
+        <i class="fas fa-user-plus"></i> Criar Conta
+      </button>
+      <button class="btnVoltar" onclick="voltarParaLogin()">
+        <i class="fas fa-arrow-left"></i> Voltar para Login
+      </button>
       <p class="loginFooter">&copy; 2026 ControlISP. Todos os direitos reservados.</p>
     </div>
   </div>

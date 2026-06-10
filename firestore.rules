@@ -11,6 +11,14 @@ service cloud.firestore {
       return request.auth.token.tenantId ? request.auth.token.tenantId : request.auth.uid;
     }
 
+    // Check if user is Super Admin (MASTER_ADMIN or superadmin)
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'MASTER_ADMIN' ||
+        request.auth.token.role == 'superadmin'
+      );
+    }
+
     // Check if the document belongs to the user's tenant
     function ownsDoc() {
       return isSignedIn() && resource.data.tenantId == getTenantId();
@@ -23,71 +31,78 @@ service cloud.firestore {
 
     // ===== USUARIOS =====
     match /usuarios/{userId} {
-      allow read: if request.auth.uid == userId;
-      allow create: if request.auth.uid == userId 
-        && request.resource.data.uid == request.auth.uid;
-      allow update: if request.auth.uid == userId;
-      allow delete: if false;
+      // Super admin can read/write all users
+      allow read: if isSuperAdmin() || request.auth.uid == userId;
+      allow create: if isSuperAdmin() || (request.auth.uid == userId 
+        && request.resource.data.uid == request.auth.uid);
+      allow update: if isSuperAdmin() || request.auth.uid == userId;
+      allow delete: if isSuperAdmin();
+    }
+
+    // ===== PLANOS_SA (Super Admin Plans) =====
+    match /planos_sa/{planoId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
     }
 
     // ===== TENANT-SCOPED COLLECTIONS =====
     match /clientes/{clienteId} {
-      allow read: if ownsDoc();
-      allow create: if ownsNewDoc();
-      allow update: if ownsDoc();
-      allow delete: if ownsDoc();
+      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow update: if isSuperAdmin() || ownsDoc();
+      allow delete: if isSuperAdmin() || ownsDoc();
     }
 
     match /planos/{planoId} {
-      allow read: if ownsDoc();
-      allow create: if ownsNewDoc();
-      allow update: if ownsDoc();
-      allow delete: if ownsDoc();
+      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow update: if isSuperAdmin() || ownsDoc();
+      allow delete: if isSuperAdmin() || ownsDoc();
     }
 
     match /recebimentos/{recebimentoId} {
-      allow read: if ownsDoc();
-      allow create: if ownsNewDoc();
-      allow update: if ownsDoc();
-      allow delete: if ownsDoc();
+      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow update: if isSuperAdmin() || ownsDoc();
+      allow delete: if isSuperAdmin() || ownsDoc();
     }
 
     match /despesas/{despesaId} {
-      allow read: if ownsDoc();
-      allow create: if ownsNewDoc();
-      allow update: if ownsDoc();
-      allow delete: if ownsDoc();
+      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow update: if isSuperAdmin() || ownsDoc();
+      allow delete: if isSuperAdmin() || ownsDoc();
     }
 
     match /mensalidades/{mensalidadeId} {
-      allow read: if ownsDoc();
-      allow create: if ownsNewDoc();
-      allow update: if ownsDoc();
-      allow delete: if ownsDoc();
+      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow update: if isSuperAdmin() || ownsDoc();
+      allow delete: if isSuperAdmin() || ownsDoc();
     }
 
     match /whatsapp_historico/{historicoId} {
-      allow read: if ownsDoc();
-      allow create: if ownsNewDoc();
-      allow update, delete: if false;
+      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow update, delete: if isSuperAdmin();
     }
 
     // ===== CONFIGURAÇÕES =====
     match /configuracoes/{configId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (request.auth.token.role == 'MASTER_ADMIN' || ownsDoc());
+      allow write: if isSuperAdmin() || ownsDoc();
     }
 
     // ===== AUDITORIA =====
     match /auditoria/{auditoriaId} {
-      allow create: if ownsNewDoc();
-      allow read: if ownsDoc();
+      allow create: if isSuperAdmin() || ownsNewDoc();
+      allow read: if isSuperAdmin() || ownsDoc();
       allow update, delete: if false;
     }
 
     // ===== BACKUPS =====
     match /backups/{backupId} {
-      allow read, write: if isSignedIn() && (request.auth.token.role == 'MASTER_ADMIN' || ownsDoc());
+      allow read, write: if isSuperAdmin() || ownsDoc();
     }
   }
 }

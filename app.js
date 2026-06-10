@@ -339,6 +339,13 @@ function fazerLogin() {
   auth.signInWithEmailAndPassword(email, senha)
     .then(async () => {
       await carregarUsuarioAtual();
+      
+      // Redirect superadmin to superadmin panel
+      if (usuarioAtual.role === 'superadmin' || isMasterAdmin()) {
+        window.location.href = 'superadmin.html';
+        return;
+      }
+      
       document.getElementById("loginTela").style.display = "none";
       document.getElementById("sistema").style.display = "flex";
       mostrarSecao("dashboard");
@@ -353,6 +360,476 @@ function fazerLogin() {
       alert("Erro de login: " + erro.message);
     });
 }
+
+// ===========================
+// CADASTRO - SCREEN NAVIGATION
+// ===========================
+
+/**
+ * Exibe a tela de cadastro e oculta a tela de login
+ */
+function mostrarCadastro() {
+  document.getElementById('loginTela').style.display = 'none';
+  document.getElementById('cadastroTela').style.display = 'flex';
+  limparMensagensCadastro();
+}
+
+/**
+ * Volta para a tela de login a partir do cadastro
+ */
+function voltarParaLogin() {
+  document.getElementById('cadastroTela').style.display = 'none';
+  document.getElementById('loginTela').style.display = 'flex';
+  limparMensagensCadastro();
+}
+
+/**
+ * Limpa mensagens e loading da tela de cadastro
+ */
+function limparMensagensCadastro() {
+  const msgErro = document.getElementById('cadastroMsgErro');
+  const msgSucesso = document.getElementById('cadastroMsgSucesso');
+  const loading = document.getElementById('cadastroLoading');
+  if (msgErro) msgErro.style.display = 'none';
+  if (msgSucesso) msgSucesso.style.display = 'none';
+  if (loading) loading.style.display = 'none';
+}
+
+// ===========================
+// INPUT MASKS (Formato Brasileiro)
+// ===========================
+
+/**
+ * Aplica máscara de WhatsApp brasileiro: (XX) XXXXX-XXXX
+ */
+function aplicarMascaraWhatsApp(input) {
+  input.addEventListener('input', function () {
+    let value = this.value.replace(/\D/g, '');
+    if (value.length > 11) value = value.substring(0, 11);
+    if (value.length > 6) {
+      this.value = '(' + value.substring(0, 2) + ') ' + value.substring(2, 7) + '-' + value.substring(7);
+    } else if (value.length > 2) {
+      this.value = '(' + value.substring(0, 2) + ') ' + value.substring(2);
+    } else if (value.length > 0) {
+      this.value = '(' + value;
+    }
+  });
+}
+
+/**
+ * Aplica máscara de CPF: XXX.XXX.XXX-XX ou CNPJ: XX.XXX.XXX/XXXX-XX
+ */
+function aplicarMascaraCpfCnpj(input) {
+  input.addEventListener('input', function () {
+    let value = this.value.replace(/\D/g, '');
+    if (value.length > 14) value = value.substring(0, 14);
+    if (value.length <= 11) {
+      // CPF
+      if (value.length > 9) {
+        this.value = value.substring(0, 3) + '.' + value.substring(3, 6) + '.' + value.substring(6, 9) + '-' + value.substring(9);
+      } else if (value.length > 6) {
+        this.value = value.substring(0, 3) + '.' + value.substring(3, 6) + '.' + value.substring(6);
+      } else if (value.length > 3) {
+        this.value = value.substring(0, 3) + '.' + value.substring(3);
+      }
+    } else {
+      // CNPJ
+      if (value.length > 12) {
+        this.value = value.substring(0, 2) + '.' + value.substring(2, 5) + '.' + value.substring(5, 8) + '/' + value.substring(8, 12) + '-' + value.substring(12);
+      } else if (value.length > 8) {
+        this.value = value.substring(0, 2) + '.' + value.substring(2, 5) + '.' + value.substring(5, 8) + '/' + value.substring(8);
+      } else if (value.length > 5) {
+        this.value = value.substring(0, 2) + '.' + value.substring(2, 5) + '.' + value.substring(5);
+      } else if (value.length > 2) {
+        this.value = value.substring(0, 2) + '.' + value.substring(2);
+      }
+    }
+  });
+}
+
+// ===========================
+// PASSWORD TOGGLE & STRENGTH
+// ===========================
+
+/**
+ * Alterna visibilidade da senha (mostrar/ocultar)
+ */
+function toggleSenhaVisibilidade(inputId, btnElement) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const icon = btnElement.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) {
+      icon.classList.remove('fa-eye');
+      icon.classList.add('fa-eye-slash');
+    }
+  } else {
+    input.type = 'password';
+    if (icon) {
+      icon.classList.remove('fa-eye-slash');
+      icon.classList.add('fa-eye');
+    }
+  }
+}
+
+/**
+ * Calcula a força da senha e atualiza a barra indicadora
+ */
+function atualizarForcaSenha() {
+  const senha = document.getElementById('cad_senha').value;
+  const indicator = document.getElementById('passwordStrengthIndicator');
+  const text = document.getElementById('passwordStrengthText');
+  if (!indicator || !text) return;
+
+  let forca = 0;
+  let cor = '#EF4444'; // Vermelho
+  let texto = 'Muito fraca';
+
+  if (senha.length >= 6) forca += 25;
+  if (senha.length >= 8) forca += 15;
+  if (/[a-z]/.test(senha)) forca += 15;
+  if (/[A-Z]/.test(senha)) forca += 15;
+  if (/[0-9]/.test(senha)) forca += 15;
+  if (/[^a-zA-Z0-9]/.test(senha)) forca += 15;
+
+  if (senha.length === 0) {
+    forca = 0;
+    texto = '';
+    cor = 'transparent';
+  } else if (forca <= 25) {
+    texto = 'Muito fraca';
+    cor = '#EF4444';
+  } else if (forca <= 40) {
+    texto = 'Fraca';
+    cor = '#F59E0B';
+  } else if (forca <= 60) {
+    texto = 'Média';
+    cor = '#FBBF24';
+  } else if (forca <= 80) {
+    texto = 'Forte';
+    cor = '#34D399';
+  } else {
+    texto = 'Muito forte';
+    cor = '#10B981';
+  }
+
+  indicator.style.width = forca + '%';
+  indicator.style.background = cor;
+  text.textContent = texto;
+  text.style.color = cor;
+}
+
+// ===========================
+// CADASTRO - VALIDATION
+// ===========================
+
+/**
+ * Exibe mensagem de erro na tela de cadastro
+ */
+function mostrarErroCadastro(mensagem) {
+  const msgEl = document.getElementById('cadastroMsgErro');
+  const sucessoEl = document.getElementById('cadastroMsgSucesso');
+  if (msgEl) {
+    msgEl.textContent = mensagem;
+    msgEl.style.display = 'block';
+    msgEl.style.animation = 'none';
+    setTimeout(() => { msgEl.style.animation = 'slideIn 0.3s ease'; }, 10);
+  }
+  if (sucessoEl) sucessoEl.style.display = 'none';
+}
+
+/**
+ * Exibe mensagem de sucesso na tela de cadastro
+ */
+function mostrarSucessoCadastro(mensagem) {
+  const msgEl = document.getElementById('cadastroMsgSucesso');
+  const erroEl = document.getElementById('cadastroMsgErro');
+  if (msgEl) {
+    msgEl.textContent = mensagem;
+    msgEl.style.display = 'block';
+  }
+  if (erroEl) erroEl.style.display = 'none';
+}
+
+/**
+ * Mostra/oculta o loading durante o cadastro
+ */
+function setCadastroLoading(ativo) {
+  const loading = document.getElementById('cadastroLoading');
+  const btn = document.getElementById('btnCriarConta');
+  if (loading) loading.style.display = ativo ? 'flex' : 'none';
+  if (btn) btn.disabled = ativo;
+}
+
+/**
+ * Valida e-mail com regex
+ */
+function validarEmail(email) {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+}
+
+/**
+ * Valida CPF (apenas dígitos)
+ */
+function validarCPF(cpf) {
+  const numeros = cpf.replace(/\D/g, '');
+  if (numeros.length !== 11) return false;
+  // Evita sequências iguais
+  if (/^(\d)\1{10}$/.test(numeros)) return false;
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(numeros.charAt(i)) * (10 - i);
+  let resto = 11 - (soma % 11);
+  if (resto >= 10) resto = 0;
+  if (resto !== parseInt(numeros.charAt(9))) return false;
+  soma = 0;
+  for (let i = 0; i < 10; i++) soma += parseInt(numeros.charAt(i)) * (11 - i);
+  resto = 11 - (soma % 11);
+  if (resto >= 10) resto = 0;
+  return resto === parseInt(numeros.charAt(10));
+}
+
+/**
+ * Valida CNPJ (apenas dígitos)
+ */
+function validarCNPJ(cnpj) {
+  const numeros = cnpj.replace(/\D/g, '');
+  if (numeros.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(numeros)) return false;
+  let tamanho = numeros.length - 2;
+  let numerosTemp = numeros.substring(0, tamanho);
+  let soma = 0;
+  let pos = tamanho - 7;
+  for (let i = tamanho; i >= 1; i--) {
+    soma += parseInt(numerosTemp.charAt(tamanho - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+  if (resultado !== parseInt(numeros.charAt(tamanho))) return false;
+  tamanho++;
+  numerosTemp = numeros.substring(0, tamanho);
+  soma = 0;
+  pos = tamanho - 7;
+  for (let i = tamanho; i >= 1; i--) {
+    soma += parseInt(numerosTemp.charAt(tamanho - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+  return resultado === parseInt(numeros.charAt(tamanho));
+}
+
+/**
+ * Traduz erros do Firebase para mensagens amigáveis em português
+ */
+function tratarErroFirebase(erro) {
+  const codigo = erro.code || erro.message || '';
+  if (codigo.includes('email-already-in-use') || codigo.includes('EMAIL_EXISTS')) {
+    return 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.';
+  }
+  if (codigo.includes('weak-password') || codigo.includes('WEAK_PASSWORD')) {
+    return 'A senha é muito fraca. Use pelo menos 6 caracteres com letras e números.';
+  }
+  if (codigo.includes('invalid-email') || codigo.includes('INVALID_EMAIL')) {
+    return 'O formato do e-mail é inválido.';
+  }
+  if (codigo.includes('network-error') || codigo.includes('NETWORK_ERROR')) {
+    return 'Erro de conexão. Verifique sua internet e tente novamente.';
+  }
+  if (codigo.includes('too-many-requests') || codigo.includes('TOO_MANY_ATTEMPTS_TRY_LATER')) {
+    return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  }
+  if (codigo.includes('operation-not-allowed') || codigo.includes('OPERATION_NOT_ALLOWED')) {
+    return 'Cadastro temporariamente desativado. Contate o suporte.';
+  }
+  // Erro genérico
+  return erro.message || 'Ocorreu um erro inesperado. Tente novamente.';
+}
+
+// ===========================
+// CADASTRO - MAIN FUNCTION
+// ===========================
+
+/**
+ * Função principal de cadastro de usuário
+ * Cria conta no Firebase Auth, salva dados no Firestore e faz login automático
+ */
+async function cadastrarUsuario() {
+  // Limpa mensagens anteriores
+  limparMensagensCadastro();
+  setCadastroLoading(true);
+
+  try {
+    // ===========================
+    // 1. Captura e sanitiza os campos
+    // ===========================
+    const nomeEmpresa = sanitizarInput(document.getElementById('cad_nomeEmpresa').value);
+    const responsavel = sanitizarInput(document.getElementById('cad_responsavel').value);
+    const whatsappPrincipal = sanitizarTelefone(document.getElementById('cad_whatsappPrincipal').value);
+    const whatsappSecundario = sanitizarTelefone(document.getElementById('cad_whatsappSecundario').value);
+    const email = sanitizarEmail(document.getElementById('cad_email').value);
+    const senha = document.getElementById('cad_senha').value;
+    const confirmarSenha = document.getElementById('cad_confirmarSenha').value;
+    const cidade = sanitizarInput(document.getElementById('cad_cidade').value);
+    const estado = document.getElementById('cad_estado').value;
+    const cpfCnpjRaw = document.getElementById('cad_cpfCnpj').value.replace(/\D/g, '');
+
+    // ===========================
+    // 2. Validação dos campos obrigatórios
+    // ===========================
+    if (!nomeEmpresa) {
+      throw new Error('O campo Nome da Empresa é obrigatório.');
+    }
+    if (!responsavel) {
+      throw new Error('O campo Nome do Responsável é obrigatório.');
+    }
+    if (!whatsappPrincipal || whatsappPrincipal.length < 10) {
+      throw new Error('Informe um WhatsApp Principal válido com DDD (ex: 81999999999).');
+    }
+    if (!email) {
+      throw new Error('O campo E-mail é obrigatório.');
+    }
+    if (!validarEmail(email)) {
+      throw new Error('Informe um e-mail válido (ex: empresa@exemplo.com).');
+    }
+    if (!senha || senha.length < 6) {
+      throw new Error('A senha deve ter no mínimo 6 caracteres.');
+    }
+    if (senha !== confirmarSenha) {
+      throw new Error('As senhas não conferem. Digite a mesma senha nos dois campos.');
+    }
+
+    // Validação opcional de CPF/CNPJ
+    if (cpfCnpjRaw.length > 0) {
+      if (cpfCnpjRaw.length === 11) {
+        if (!validarCPF(cpfCnpjRaw)) {
+          throw new Error('CPF informado é inválido. Verifique os números.');
+        }
+      } else if (cpfCnpjRaw.length === 14) {
+        if (!validarCNPJ(cpfCnpjRaw)) {
+          throw new Error('CNPJ informado é inválido. Verifique os números.');
+        }
+      } else {
+        throw new Error('CPF/CNPJ deve ter 11 ou 14 dígitos.');
+      }
+    }
+
+    // ===========================
+    // 3. Criação do usuário no Firebase Authentication
+    // ===========================
+    const userCredential = await auth.createUserWithEmailAndPassword(email, senha);
+    const user = userCredential.user;
+
+    // ===========================
+    // 4. Calcula data de expiração do teste (15 dias)
+    // ===========================
+    const agora = new Date();
+    const dataExpiracaoTeste = new Date(agora);
+    dataExpiracaoTeste.setDate(dataExpiracaoTeste.getDate() + 15);
+
+    // ===========================
+    // 5. Salva dados do usuário no Firestore
+    // ===========================
+    const usuarioData = {
+      uid: user.uid,
+      nomeEmpresa: nomeEmpresa,
+      responsavel: responsavel,
+      whatsappPrincipal: whatsappPrincipal,
+      whatsappSecundario: whatsappSecundario || '',
+      email: email,
+      cpfCnpj: cpfCnpjRaw || '',
+      cidade: cidade || '',
+      estado: estado || '',
+      plano: 'Teste',
+      status: 'Ativo',
+      role: 'cliente',
+      tenantId: user.uid,
+      diasTeste: 15,
+      dataExpiracaoTeste: firebase.firestore.Timestamp.fromDate(dataExpiracaoTeste),
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      ultimoLogin: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: user.uid,
+      updatedBy: user.uid,
+      updatedAt: new Date()
+    };
+
+    await db.collection('usuarios').doc(user.uid).set(usuarioData);
+
+    // ===========================
+    // 6. Login automático e redirecionamento
+    // ===========================
+    mostrarSucessoCadastro('Conta criada com sucesso! Redirecionando...');
+
+    // Aguarda um momento para mostrar a mensagem de sucesso
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Carrega dados do usuário recém-criado
+    await carregarUsuarioAtual();
+
+    // Esconde tela de cadastro e mostra o sistema
+    document.getElementById('cadastroTela').style.display = 'none';
+    document.getElementById('loginTela').style.display = 'none';
+    document.getElementById('sistema').style.display = 'flex';
+    mostrarSecao('dashboard');
+
+    // Inicializa tema e carrega dados
+    initializeTheme();
+    await carregarConfiguracoesSistema();
+    await registrarAuditoria('cadastro', `Novo usuário cadastrado: ${email} - ${nomeEmpresa}`);
+
+    // Carrega todos os dados iniciais do sistema
+    carregarDadosIniciais();
+
+    // Força recarregamento dos listeners após o login automático
+    console.log('✅ Usuário cadastrado e logado com sucesso:', email);
+
+  } catch (erro) {
+    // Trata o erro e exibe mensagem amigável
+    const mensagemErro = tratarErroFirebase(erro);
+    mostrarErroCadastro(mensagemErro);
+    console.error('Erro no cadastro:', erro);
+  } finally {
+    setCadastroLoading(false);
+  }
+}
+
+// ===========================
+// INIT - MASCARAS E EVENTOS
+// ===========================
+
+/**
+ * Inicializa máscaras e eventos quando o DOM estiver pronto
+ */
+document.addEventListener('DOMContentLoaded', function () {
+  // Máscara WhatsApp Principal
+  const waPrincipal = document.getElementById('cad_whatsappPrincipal');
+  if (waPrincipal) aplicarMascaraWhatsApp(waPrincipal);
+
+  // Máscara WhatsApp Secundário
+  const waSecundario = document.getElementById('cad_whatsappSecundario');
+  if (waSecundario) aplicarMascaraWhatsApp(waSecundario);
+
+  // Máscara CPF/CNPJ
+  const cpfCnpj = document.getElementById('cad_cpfCnpj');
+  if (cpfCnpj) aplicarMascaraCpfCnpj(cpfCnpj);
+
+  // Força da senha
+  const senhaInput = document.getElementById('cad_senha');
+  if (senhaInput) {
+    senhaInput.addEventListener('input', atualizarForcaSenha);
+  }
+
+  // Permitir Enter para submeter o cadastro
+  const cadastroForm = document.getElementById('cadastroTela');
+  if (cadastroForm) {
+    cadastroForm.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        cadastrarUsuario();
+      }
+    });
+  }
+});
 
 // ===========================
 // INITIAL DATA LOAD
@@ -3041,21 +3518,44 @@ auth.onAuthStateChanged(async (user) => {
 
   if (user) {
     try {
+      // If user is on index.html and is superadmin, redirect to superadmin panel
+      const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+      const isIndexPage = currentPage === 'index.html' || currentPage === '';
+      
       await carregarUsuarioAtual();
       mostrarAdminIfNeeded();
 
-      // Se já está logado (login via fazerLogin já tratou), verificar se tela de login está oculta
+      // Check if superadmin - redirect to superadmin.html if on index page
+      if ((usuarioAtual.role === 'superadmin' || isMasterAdmin()) && isIndexPage) {
+        window.location.href = 'superadmin.html';
+        return;
+      }
+
+      // Verifica se o usuário já está em alguma tela ativa
+      // (loginTela visível significa que precisa redirecionar para o sistema)
       const loginTela = document.getElementById("loginTela");
+      const cadastroTela = document.getElementById("cadastroTela");
       const sistema = document.getElementById("sistema");
 
-      if (loginTela && loginTela.style.display !== "none") {
-        // Usuário já autenticado, recarregar dados
+      // Só redireciona se estiver na tela de login (não se veio do cadastro)
+      const loginVisivel = loginTela && loginTela.style.display !== "none";
+      const cadastroVisivel = cadastroTela && cadastroTela.style.display !== "none";
+
+      if (loginVisivel && !cadastroVisivel) {
+        // Usuário recarregou a página ou fez login externo
         loginTela.style.display = "none";
+        if (cadastroTela) cadastroTela.style.display = "none";
         if (sistema) sistema.style.display = "flex";
         mostrarSecao("dashboard");
         initializeTheme();
         await carregarConfiguracoesSistema();
         carregarDadosIniciais();
+      } else if (cadastroVisivel) {
+        // Veio do cadastro - o fluxo principal já está tratando
+        // Apenas garante que dados estejam carregados se o sistema já estiver visível
+        if (sistema && sistema.style.display === "flex") {
+          carregarDadosIniciais();
+        }
       }
     } catch (erro) {
       console.error("Erro ao inicializar sessão:", erro);
