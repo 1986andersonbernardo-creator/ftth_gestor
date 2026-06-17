@@ -1,0 +1,26 @@
+[33m59f2f74[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix: corrigir comportamento do ADMIN no sistema multi-tenant
+[33mf9f86b9[m feat: adicionar tabela detalhada de Receita em Atraso no dashboard
+[33m983e1b7[m feat: reorganizar dashboard executivo e mudar para Receita Anual Projetada
+[33m248a3ce[m fix: permitir admin ver todos os registros sem usuarioId
+[33m5e161f2[m feat: adicionar diagnóstico de dados e logging
+[33ma6e29f7[m feat: adicionar migração segura de dados antigos para admin
+[33maf68e56[m feat: expandir responsividade para todos os tamanhos de tela
+[33m8ce0877[m feat: expandir estados vazios com variações premium
+[33mdcc53a8[m feat: expandir skeleton loading com variações premium
+[33maa25cb2[m feat: implementar Dark Mode profissional
+[33m7bf9aec[m feat: redesenhar header com busca, notificações e perfil
+[33m8c292c5[m feat: adicionar animações premium à interface
+[33m1b79dbe[m feat: atualizar formulários com estilo premium
+[33mb9d5ebf[m feat: implementar Design System premium para ControlISP
+[33m21ceaa7[m feat: adicionar botão WhatsApp na seção de inadimplência
+[33me2bc06e[m revert: admin deve ver apenas seus próprios dados, não de outros usuários
+[33m3046c03[m fix: permitir admin ver todos os dados sem filtro de usuarioId
+[33mdacd5f0[m feat: integrar Calculadora Óptica FTTH ao sistema ControlISP
+[33m84e6d1b[m Implementação melhorias WhatsApp cobrança
+[33m56b8d61[m Atualização do financeiro e mensalidades recorrentes
+[33m5a4d3c5[m Atualização do FTTHGestor
+[33medf2bb0[m atualização
+[33m9a838e9[m Atualização do projeto
+[33md29ce4b[m Atualização do projeto
+[33m7053477[m corrige responsividade mobile
+[33m3c61979[m primeiro upload
