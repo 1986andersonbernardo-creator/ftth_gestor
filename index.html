@@ -3,25 +3,24 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="ControlISP Pro - Plataforma profissional de gestão para provedores de internet. Gerencie clientes, planos, financeiro e inadimplência com facilidade.">
   <meta name="keywords" content="ControlISP, gestão ISP, provedores internet, CRM, financeiro, gestão de clientes">
   <meta name="author" content="ControlISP">
+  <meta name="theme-color" content="#0F172A">
   <title>ControlISP Pro</title>
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="design-system.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.min.css">
   <link rel="stylesheet" href="style.css">
 
-  <!-- FIREBASE SDK (v9 COMPAT - provides firebase.initializeApp, firebase.auth(), firebase.firestore()) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js">
-  </script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js">
-  </script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js">
-  </script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js">
-  </script>
+  <!-- FIREBASE SDK (v9 COMPAT) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- FIREBASE CONFIG -->
   <script src="firebase.js"></script>
@@ -31,19 +30,150 @@
 </head>
 
 <body>
+  <!-- ============================= -->
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <!-- ============================= -->
+  <div id="toast-container" class="toast-container" style="display:none;"></div>
 
-  <!-- LOGIN -->
+  <!-- ============================= -->
+  <!-- LOGIN SCREEN -->
+  <!-- ============================= -->
   <div class="loginTela" id="loginTela" style="display:flex;">
     <div class="loginBox">
-      <img src="./img/logo.png" class="logoSidebar" alt="ControlISP Pro">
-      <h2>ControLiSP</h2>
+      <img src="./img/logo.png" class="logoLogin" alt="ControlISP Pro">
+      <h2>ControlISP</h2>
       <p class="loginSubtitle">Gestão Inteligente para Provedores de Internet</p>
-      <input type="email" id="usuario" placeholder="E-mail">
-      <input type="password" id="senha" placeholder="Senha">
-      <button onclick="fazerLogin()">
-        <i class="fas fa-sign-in-alt"></i> Entrar
+
+      <!-- Email Input -->
+      <div class="input-group">
+        <i class="fas fa-envelope input-icon"></i>
+        <input type="email" id="usuario" placeholder="seu@email.com" autocomplete="email" autocapitalize="off" spellcheck="false">
+      </div>
+
+      <!-- Password Input -->
+      <div class="input-group">
+        <i class="fas fa-lock input-icon"></i>
+        <div class="senhaWrapper">
+          <input type="password" id="senha" placeholder="Sua senha" autocomplete="current-password" style="padding-left:44px;">
+          <button class="toggleSenha" onclick="toggleSenhaVisibilidade('senha', this)" type="button" tabindex="-1" aria-label="Mostrar/ocultar senha">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <button onclick="fazerLogin()" id="btnLogin">
+        <span class="btn-text">Entrar</span>
+        <span class="btn-spinner"></span>
       </button>
-      <p class="loginFooter">&copy; 2026 ControlISP. Todos os direitos reservados.</p>
+
+      <p class="loginFooter">
+        <a href="#" onclick="mostrarCadastro()" style="color:var(--primary-light);font-weight:600;">Criar Conta</a>
+      </p>
+      <p class="loginFooter">
+        <a href="#" onclick="alert('Envie um e-mail para suporte@controlisp.com.br para redefinir sua senha.')" style="font-size:13px;">Esqueceu sua senha?</a>
+      </p>
+      <p class="loginFooter copyright">&copy; 2026 ControlISP. Todos os direitos reservados.</p>
+    </div>
+  </div>
+
+  <!-- CADASTRO -->
+  <div class="loginTela" id="cadastroTela" style="display:none;">
+    <div class="loginBox cadastroBox">
+      <img src="./img/logo.png" class="logoLogin" alt="ControlISP Pro">
+      <h2 style="font-size:22px;margin-bottom:8px;">Criar Conta</h2>
+      <p class="loginSubtitle" style="margin-bottom:20px;">Comece seu teste gratuito de 15 dias</p>
+
+      <div id="cadastroMsgErro" class="cadastroMsgErro" style="display:none;"></div>
+      <div id="cadastroMsgSucesso" class="cadastroMsgSucesso" style="display:none;"></div>
+      <div id="cadastroLoading" class="cadastroLoading" style="display:none;">
+        <div class="loading-spinner"></div>
+        <span>Criando sua conta...</span>
+      </div>
+
+      <h3 style="font-size:13px;color:var(--text-muted);margin-bottom:12px;font-weight:600;">DADOS DO PROVEDOR</h3>
+
+      <div class="input-group no-icon">
+        <input type="text" id="cad_nomeProvedor" placeholder="Nome do Provedor">
+      </div>
+      <div class="input-group no-icon">
+        <input type="tel" id="cad_whatsapp" placeholder="WhatsApp">
+      </div>
+      <div class="input-group no-icon">
+        <input type="text" id="cad_cidade" placeholder="Cidade">
+      </div>
+
+      <h3 style="font-size:13px;color:var(--text-muted);margin-bottom:12px;margin-top:8px;font-weight:600;">DADOS DO ADMINISTRADOR</h3>
+
+      <div class="input-group no-icon">
+        <input type="text" id="cad_nome" placeholder="Nome do Administrador">
+      </div>
+      <div class="input-group no-icon">
+        <input type="email" id="cad_email" placeholder="E-mail" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="input-group no-icon">
+        <div class="senhaWrapper">
+          <input type="password" id="cad_senha" placeholder="Senha" style="padding-right:44px;">
+          <button class="toggleSenha" onclick="toggleSenhaVisibilidade('cad_senha', this)" type="button" tabindex="-1" aria-label="Mostrar/ocultar senha">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group no-icon">
+        <div class="senhaWrapper">
+          <input type="password" id="cad_confirmarSenha" placeholder="Confirmar Senha" style="padding-right:44px;">
+          <button class="toggleSenha" onclick="toggleSenhaVisibilidade('cad_confirmarSenha', this)" type="button" tabindex="-1" aria-label="Mostrar/ocultar senha">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="passwordStrengthBar" style="margin-bottom:4px;">
+        <div class="passwordStrengthIndicator" id="cadastroStrengthIndicator"></div>
+      </div>
+      <span class="passwordStrengthText" id="cadastroStrengthText"></span>
+
+      <label style="display:flex;align-items:center;gap:8px;margin:16px 0;font-size:13px;color:var(--text-secondary);cursor:pointer;">
+        <input type="checkbox" id="cad_termos" style="width:auto;margin:0;accent-color:var(--primary);">
+        Aceito os <a href="#" onclick="alert('Termos de Uso - ControlISP Pro\n\nAo criar uma conta, você concorda com nossos termos de serviço e política de privacidade.');return false;" style="color:var(--primary-light);margin-left:4px;">Termos de Uso</a>
+      </label>
+
+      <button onclick="cadastrarUsuario()" id="btnCriarConta" class="btnPrimario" style="width:100%;">
+        <span class="btn-text"><i class="fas fa-rocket"></i> Criar Conta</span>
+        <span class="btn-spinner"></span>
+      </button>
+
+      <button onclick="voltarParaLogin()" class="btnVoltar" style="margin-top:8px;">
+        <i class="fas fa-arrow-left"></i> Voltar
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!-- BLOCKED ACCOUNT SCREEN -->
+  <!-- ============================= -->
+  <div class="loginTela" id="blockedTela" style="display:none;">
+    <div class="loginBox" style="border: 2px solid var(--danger);">
+      <div style="text-align:center;margin-bottom:20px;">
+        <i class="fas fa-ban" style="font-size:64px;color:var(--danger);margin-bottom:16px;"></i>
+        <h2 id="blockedStatus" style="color:var(--danger);font-size:24px;">Conta Bloqueada</h2>
+      </div>
+      <p style="color:var(--text-secondary);text-align:center;font-size:15px;line-height:1.6;margin-bottom:24px;">
+        Seu acesso foi bloqueado pelo administrador.
+      </p>
+      <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:16px;margin-bottom:24px;">
+        <p style="color:var(--danger);font-size:14px;font-weight:600;margin-bottom:8px;">
+          <i class="fas fa-info-circle"></i> Motivo:
+        </p>
+        <p id="blockedMotivo" style="color:var(--text-secondary);font-size:14px;line-height:1.5;">
+          Conta bloqueada pelo administrador.
+        </p>
+      </div>
+      <p style="color:var(--text-muted);text-align:center;font-size:13px;">
+        Entre em contato com o suporte para mais informações.
+      </p>
+      <button onclick="logout()" style="width:100%;margin-top:20px;padding:12px;background:var(--danger);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">
+        <i class="fas fa-sign-out-alt"></i> Voltar ao Login
+      </button>
     </div>
   </div>
 
@@ -55,15 +185,12 @@
 
     <aside class="sidebar" id="mainSidebar">
       <div class="sidebarTop">
-        <img src="./img/logo.png" class="logoLogin" alt="ControlISP Pro">
+        <img src="img/logo.png" class="logoSidebar" id="logoSidebar" alt="ControlISP Pro" style="width:42px;height:42px;border-radius:10px;object-fit:cover;">
         <h4>ControlISP</h4>
-        <button class="sidebar-close-btn" onclick="toggleSidebar()" title="Fechar menu">
-          <i class="fas fa-times"></i>
-        </button>
       </div>
 
       <nav class="sidebarNav">
-        <button class="navBtn sidebar-nav-item" onclick="mostrarSecao('dashboard')">
+        <button class="navBtn sidebar-nav-item active" onclick="mostrarSecao('dashboard')">
           <i class="fas fa-chart-pie"></i>
           <span>Dashboard</span>
         </button>
@@ -87,14 +214,10 @@
           <i class="fas fa-network-wired"></i>
           <span>Engenharia FTTH</span>
         </button>
-        <button class="navBtn navBtnAdmin sidebar-nav-item" onclick="mostrarSecao('administracao')" id="btnAdmin" style="display:none;">
-          <i class="fas fa-shield-alt"></i>
-          <span>Administração</span>
-        </button>
       </nav>
 
       <div class="sidebarBottom">
-        <button class="navBtn navBtnLogout" onclick="logout()">
+        <button class="navBtnLogout" onclick="logout()">
           <i class="fas fa-power-off"></i>
           <span>Sair</span>
         </button>
@@ -103,100 +226,270 @@
 
     <main class="main">
 
-      <div class="topbar">
+      <!-- TOPBAR - Provider Identity Only -->
+      <div class="topbar" id="mainTopbar">
         <div class="topbarLeft">
           <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Abrir menu" id="mobileMenuBtn">
             <i class="fas fa-bars"></i>
           </button>
-          <div class="topbarLeftContent">
-            <h2>Dashboard ControlISP</h2>
-            <p>Gestão Inteligente para Provedores de Internet</p>
+          <div class="provider-identity" id="providerIdentity">
+            <div class="provider-logo-wrapper" onclick="document.getElementById('logoUploadInput').click()" title="Clique para alterar logo">
+              <img id="providerLogo" src="img/logo.png" alt="Logo do Provedor" class="provider-logo" loading="lazy">
+              <div class="provider-logo-overlay">
+                <i class="fas fa-camera"></i>
+              </div>
+            </div>
+            <input type="file" id="logoUploadInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="uploadProviderLogo(event)">
+            <div class="provider-name-wrapper" onclick="editarNomeProvedor()" title="Clique para editar nome">
+              <span class="provider-name" id="providerNameText">Carregando...</span>
+              <i class="fas fa-pen provider-edit-icon"></i>
+            </div>
           </div>
         </div>
         <div class="topbarRight">
-          <div class="header-search">
-            <input type="text" placeholder="Buscar..." class="input-premium" style="padding: 10px 16px; font-size: 14px;">
-            <i class="fas fa-search"></i>
-          </div>
-          <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
-            <i class="fas fa-moon" id="themeIcon"></i>
-          </button>
-          <button class="header-icon-btn" onclick="toggleNotifications()">
-            <i class="fas fa-bell"></i>
-            <span class="notification-badge">3</span>
-          </button>
-          <div class="header-profile">
+          <div class="header-profile" title="Meu Perfil">
             <div class="avatar">
               <i class="fas fa-user"></i>
             </div>
             <div class="profile-info">
-              <span class="profile-name">Admin</span>
+              <span class="profile-name" id="headerProfileName">Admin</span>
               <span class="profile-role">Administrador</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- DASHBOARD -->
-      <section id="dashboard" class="secao" style="display:none;">
-        <h1>Dashboard Executivo</h1>
-        <div class="cards">
-          <div class="card card-premium">
-            <div class="cardIcon">
-              <i class="fas fa-users"></i>
-            </div>
-            <h3>Total de Clientes</h3>
-            <h2 id="totalClientes">0</h2>
+      <!-- DASHBOARD EXECUTIVO PREMIUM -->
+      <section id="dashboard" class="secao" style="display:block;">
+        <div class="dashboard-header">
+          <div>
+            <h1>Dashboard Executivo</h1>
+            <p class="dashboard-subtitle">Visão completa do seu negócio em tempo real</p>
           </div>
-          <div class="card card-premium">
-            <div class="cardIcon">
-              <i class="fas fa-user-check"></i>
-            </div>
-            <h3>Clientes Ativos</h3>
-            <h2 id="clientesAtivos">0</h2>
+          <div class="dashboard-header-date">
+            <i class="fas fa-calendar-alt"></i>
+            <span id="dataAtualDashboard"></span>
           </div>
-          <div class="card card-premium">
-            <div class="cardIcon">
-              <i class="fas fa-sack-dollar"></i>
+        </div>
+
+        <!-- Skeleton Loading -->
+        <div class="skeleton-grid" id="skeletonDashboard">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+
+        <!-- Premium KPI Cards -->
+        <div class="cards premium-cards" id="dashboardCards" style="display:none;">
+          <!-- Card 1 - Receita Recebida -->
+          <div class="card card-premium card-gradient-blue">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-circle-check"></i>
+              </div>
+              <span class="card-badge">Mês Atual</span>
             </div>
-            <h3>Faturamento Mensal</h3>
-            <h2 id="faturamentoMensal">R$ 0</h2>
+            <div class="card-body">
+              <h3>Receita Recebida</h3>
+              <h2 id="receitaRecebidaMes">R$ 0,00</h2>
+              <div class="card-trend" id="trendReceitaRecebida">
+                <span class="trend-icon"><i class="fas fa-arrow-up"></i></span>
+                <span class="trend-value">+0%</span>
+                <span class="trend-label">vs. mês anterior</span>
+              </div>
+            </div>
           </div>
-          <div class="card card-premium">
-            <div class="cardIcon">
-              <i class="fas fa-chart-column"></i>
+
+          <!-- Card 2 - Receita Prevista -->
+          <div class="card card-premium card-gradient-purple">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-chart-line"></i>
+              </div>
+              <span class="card-badge">Projeção</span>
             </div>
-            <h3>Ticket Médio</h3>
-            <h2 id="ticketMedio">R$ 0</h2>
+            <div class="card-body">
+              <h3>Receita Prevista</h3>
+              <h2 id="receitaPrevista">R$ 0,00</h2>
+              <div class="card-trend" id="trendReceitaPrevista">
+                <span class="trend-icon"><i class="fas fa-arrow-up"></i></span>
+                <span class="trend-value">+0%</span>
+                <span class="trend-label">vs. mês anterior</span>
+              </div>
+            </div>
           </div>
-          <div class="card card-premium">
-            <div class="cardIcon">
-              <i class="fas fa-check-circle"></i>
+
+          <!-- Card 3 - Clientes Ativos -->
+          <div class="card card-premium card-gradient-green">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-user-check"></i>
+              </div>
+              <span class="card-badge">Ativos</span>
             </div>
-            <h3>Receita Recebida (Mês)</h3>
-            <h2 id="receitaRecebidaMes">R$ 0</h2>
+            <div class="card-body">
+              <h3>Clientes Ativos</h3>
+              <h2 id="clientesAtivos">0</h2>
+              <div class="card-trend" id="trendClientesAtivos">
+                <span class="trend-icon"><i class="fas fa-arrow-up"></i></span>
+                <span class="trend-value">+0</span>
+                <span class="trend-label">novos este mês</span>
+              </div>
+            </div>
           </div>
-          <div class="card card-premium" style="background: var(--gradient-primary);">
-            <div class="cardIcon">
-              <i class="fas fa-chart-line"></i>
+
+          <!-- Card 4 - Clientes Inadimplentes -->
+          <div class="card card-premium card-gradient-red">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <span class="card-badge">Atenção</span>
             </div>
-            <h3>Receita Anual Projetada</h3>
-            <h2 id="receitaAnualProjetada">R$ 0</h2>
-            <p style="font-size: 11px; color: rgba(255,255,255,0.8); margin-top: 5px;">Faturamento anual dos clientes ativos</p>
+            <div class="card-body">
+              <h3>Clientes Inadimplentes</h3>
+              <h2 id="clientesInadimplentes">0</h2>
+              <div class="card-trend" id="trendInadimplentes">
+                <span class="trend-icon"><i class="fas fa-arrow-down"></i></span>
+                <span class="trend-value">0%</span>
+                <span class="trend-label">taxa de inadimplência</span>
+              </div>
+            </div>
           </div>
-          <div class="card card-premium">
-            <div class="cardIcon">
-              <i class="fas fa-exclamation-triangle"></i>
+
+          <!-- Card 5 - Novos Clientes -->
+          <div class="card card-premium card-gradient-cyan">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-user-plus"></i>
+              </div>
+              <span class="card-badge">Mês</span>
             </div>
-            <h3>Receita em Atraso</h3>
-            <h2 id="receitaAtraso">R$ 0</h2>
+            <div class="card-body">
+              <h3>Novos Clientes</h3>
+              <h2 id="novosClientesMes">0</h2>
+              <div class="card-trend" id="trendNovosClientes">
+                <span class="trend-icon"><i class="fas fa-arrow-up"></i></span>
+                <span class="trend-value">+0</span>
+                <span class="trend-label">este mês</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 6 - Taxa de Inadimplência -->
+          <div class="card card-premium card-gradient-orange">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-percentage"></i>
+              </div>
+              <span class="card-badge">Indicador</span>
+            </div>
+            <div class="card-body">
+              <h3>Taxa de Inadimplência</h3>
+              <h2 id="taxaInadimplencia">0%</h2>
+              <div class="card-trend" id="trendTaxaInadimplencia">
+                <span class="trend-icon"><i class="fas fa-arrow-down"></i></span>
+                <span class="trend-value">0%</span>
+                <span class="trend-label">do faturamento</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 7 - Chamados Abertos -->
+          <div class="card card-premium card-gradient-amber">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-headset"></i>
+              </div>
+              <span class="card-badge">Suporte</span>
+            </div>
+            <div class="card-body">
+              <h3>Chamados Abertos</h3>
+              <h2 id="chamadosAbertos">0</h2>
+              <div class="card-trend">
+                <span class="trend-label">últimos 30 dias</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 8 - Tickets Resolvidos -->
+          <div class="card card-premium card-gradient-teal">
+            <div class="card-header">
+              <div class="cardIcon">
+                <i class="fas fa-check-double"></i>
+              </div>
+              <span class="card-badge">Suporte</span>
+            </div>
+            <div class="card-body">
+              <h3>Tickets Resolvidos</h3>
+              <h2 id="ticketsResolvidos">0</h2>
+              <div class="card-trend">
+                <span class="trend-label">últimos 30 dias</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GRÁFICOS INTERATIVOS -->
+        <div class="charts-grid" id="chartsContainer" style="display:none;">
+          <div class="chart-card chart-card-full">
+            <div class="chart-header">
+              <h3><i class="fas fa-chart-line"></i> Receita Mensal</h3>
+              <div class="chart-actions">
+                <span class="chart-period">Últimos 12 meses</span>
+              </div>
+            </div>
+            <div class="chart-body">
+              <canvas id="chartReceitaMensal"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3><i class="fas fa-chart-pie"></i> Clientes por Plano</h3>
+            </div>
+            <div class="chart-body">
+              <canvas id="chartClientesPorPlano"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3><i class="fas fa-chart-bar"></i> Receita por Plano</h3>
+            </div>
+            <div class="chart-body">
+              <canvas id="chartReceitaPorPlano"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3><i class="fas fa-users"></i> Evolução de Clientes</h3>
+            </div>
+            <div class="chart-body">
+              <canvas id="chartEvolucaoClientes"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3><i class="fas fa-exclamation-circle"></i> Inadimplência Mensal</h3>
+            </div>
+            <div class="chart-body">
+              <canvas id="chartInadimplenciaMensal"></canvas>
+            </div>
           </div>
         </div>
 
         <!-- Tabela de Receita em Atraso -->
-        <div class="tableContainer" style="margin-top: 30px;">
+        <div class="tableContainer animate-fade-in-up" id="tabelaAtrasoContainer" style="display:none;">
           <h3><i class="fas fa-exclamation-triangle"></i> Receita em Atraso - Detalhamento</h3>
-          <table class="table-premium">
+          <table>
             <thead>
               <tr>
                 <th>Cliente</th>
@@ -209,7 +502,8 @@
             </thead>
             <tbody id="listaReceitaAtraso">
               <tr>
-                <td colspan="6" style="text-align: center; color: var(--text-muted);">
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                  <i class="fas fa-check-circle" style="font-size: 24px; display: block; margin-bottom: 8px; opacity: 0.5;"></i>
                   Nenhum registro em atraso
                 </td>
               </tr>
@@ -242,7 +536,7 @@
           <input id="vencimento" class="input-premium" type="number" placeholder="Vencimento">
         </div>
         <div class="btnGroupClientes">
-          <button class="btnPrimario btn-premium" onclick="salvarCliente()">
+          <button class="btnPrimario" onclick="salvarCliente()">
             <i class="fas fa-plus"></i> Cadastrar Cliente
           </button>
           <button class="btnSecundario" onclick="atualizarCliente()">
@@ -300,10 +594,7 @@
       <!-- FINANCEIRO -->
       <section id="financeiro" class="secao" style="display:none;">
 
-        <!-- ============================= -->
         <!-- HEADER FINANCEIRO -->
-        <!-- ============================= -->
-
         <div class="finance-section-header">
           <div>
             <h1>Financeiro</h1>
@@ -315,10 +606,7 @@
           </div>
         </div>
 
-        <!-- ============================= -->
         <!-- DASHBOARD FINANCEIRO - KPI CARDS -->
-        <!-- ============================= -->
-
         <div class="financeiroDashboard">
           <div class="cardsFinanceiro">
             <div class="cardFinanceiro cardPrimario">
@@ -379,23 +667,21 @@
 
         <!-- TABS DE NAVEGAÇÃO -->
         <div class="financeiroTabs">
-          <button class="tabBtn active" onclick="mostrarAbaFinanceira('contas-receber')">
+          <button class="tabBtn active" onclick="mostrarAbaFinanceira('contas-receber', event)">
             <i class="fas fa-file-invoice-dollar"></i> Contas a Receber
           </button>
-          <button class="tabBtn" onclick="mostrarAbaFinanceira('contas-pagar')">
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('contas-pagar', event)">
             <i class="fas fa-money-check-dollar"></i> Contas a Pagar
           </button>
-          <button class="tabBtn" onclick="mostrarAbaFinanceira('fluxo-caixa')">
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('fluxo-caixa', event)">
             <i class="fas fa-chart-line"></i> Fluxo de Caixa
           </button>
-          <button class="tabBtn" onclick="mostrarAbaFinanceira('inadimplencia')">
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('inadimplencia', event)">
             <i class="fas fa-triangle-exclamation"></i> Inadimplência
           </button>
         </div>
 
-        <!-- ============================= -->
-        <!-- 1. CONTAS A RECEBER -->
-        <!-- ============================= -->
+        <!-- CONTAS A RECEBER -->
         <div id="contas-receber" class="abaFinanceira ativa" style="display:block;">
           <div class="headerAba">
             <h2>Contas a Receber</h2>
@@ -410,12 +696,7 @@
           </div>
 
           <div class="filtrosFinanceiro">
-            <input 
-              type="text" 
-              id="buscaClienteReceb" 
-              placeholder="🔍 Buscar cliente..."
-              onkeyup="filtrarRecebimentos()"
-            >
+            <input type="text" id="buscaClienteReceb" placeholder="🔍 Buscar cliente..." onkeyup="filtrarRecebimentos()">
             <select id="filtroStatusReceb" onchange="filtrarRecebimentos()">
               <option value="">Todos os status</option>
               <option value="Pago">✅ Pago</option>
@@ -425,7 +706,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -441,9 +722,7 @@
           </div>
         </div>
 
-        <!-- ============================= -->
-        <!-- 2. CONTAS A PAGAR -->
-        <!-- ============================= -->
+        <!-- CONTAS A PAGAR -->
         <div id="contas-pagar" class="abaFinanceira" style="display:none;">
           <div class="headerAba">
             <h2>Contas a Pagar</h2>
@@ -453,12 +732,7 @@
           </div>
 
           <div class="filtrosFinanceiro">
-            <input 
-              type="text" 
-              id="buscaDespesa" 
-              placeholder="🔍 Buscar despesa..."
-              onkeyup="filtrarDespesas()"
-            >
+            <input type="text" id="buscaDespesa" placeholder="🔍 Buscar despesa..." onkeyup="filtrarDespesas()">
             <select id="filtroCategoriaDespesa" onchange="filtrarDespesas()">
               <option value="">Todas as categorias</option>
               <option value="Infraestrutura">🏗️ Infraestrutura</option>
@@ -475,7 +749,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Descrição</th>
@@ -491,9 +765,7 @@
           </div>
         </div>
 
-        <!-- ============================= -->
-        <!-- 3. FLUXO DE CAIXA -->
-        <!-- ============================= -->
+        <!-- FLUXO DE CAIXA -->
         <div id="fluxo-caixa" class="abaFinanceira" style="display:none;">
           <h2>Fluxo de Caixa</h2>
 
@@ -513,23 +785,15 @@
           </div>
 
           <div class="filtrosFinanceiro">
-            <input 
-              type="date" 
-              id="dataInicio" 
-              onchange="atualizarFluxoCaixa()"
-            >
-            <input 
-              type="date" 
-              id="dataFim" 
-              onchange="atualizarFluxoCaixa()"
-            >
+            <input type="date" id="dataInicio" onchange="atualizarFluxoCaixa()">
+            <input type="date" id="dataFim" onchange="atualizarFluxoCaixa()">
             <button onclick="atualizarFluxoCaixa()" class="btnSecundario">
               <i class="fas fa-rotate-right"></i> Atualizar
             </button>
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Data</th>
@@ -543,9 +807,7 @@
           </div>
         </div>
 
-        <!-- ============================= -->
-        <!-- 4. INADIMPLÊNCIA -->
-        <!-- ============================= -->
+        <!-- INADIMPLÊNCIA -->
         <div id="inadimplencia" class="abaFinanceira" style="display:none;">
           <h2>Análise de Inadimplência</h2>
 
@@ -565,7 +827,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaFinanceira table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -589,16 +851,16 @@
         
         <!-- TABS DE NAVEGAÇÃO WHATSAPP -->
         <div class="whatsappTabs">
-          <button class="whatsappTabBtn active" onclick="mostrarAbaWhatsApp('mensagens')">
+          <button class="whatsappTabBtn active" onclick="mostrarAbaWhatsApp('mensagens', event)">
             <i class="fas fa-envelope"></i> Mensagens
           </button>
-          <button class="whatsappTabBtn" onclick="mostrarAbaWhatsApp('cobrancas')">
+          <button class="whatsappTabBtn" onclick="mostrarAbaWhatsApp('cobrancas', event)">
             <i class="fas fa-file-invoice-dollar"></i> Cobranças
           </button>
-          <button class="whatsappTabBtn" onclick="mostrarAbaWhatsApp('historico')">
+          <button class="whatsappTabBtn" onclick="mostrarAbaWhatsApp('historico', event)">
             <i class="fas fa-history"></i> Histórico
           </button>
-          <button class="whatsappTabBtn" onclick="mostrarAbaWhatsApp('configuracoes')">
+          <button class="whatsappTabBtn" onclick="mostrarAbaWhatsApp('configuracoes', event)">
             <i class="fas fa-cog"></i> Configurações
           </button>
         </div>
@@ -670,10 +932,10 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaWhatsApp table-premium">
+            <table>
               <thead>
                 <tr>
-                  <th><input type="checkbox" id="wa_select_all" onchange="toggleSelectAllWhatsApp()"></th>
+                  <th style="width:40px;"><input type="checkbox" id="wa_select_all" onchange="toggleSelectAllWhatsApp()"></th>
                   <th>Cliente</th>
                   <th>Telefone</th>
                   <th>Status</th>
@@ -753,7 +1015,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaWhatsApp table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -800,7 +1062,7 @@
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaWhatsApp table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -937,7 +1199,7 @@ Atenciosamente,
       <!-- ENGENHARIA FTTH -->
       <section id="engenharia-ftth" class="secao" style="display:none;">
         <h1>Engenharia FTTH</h1>
-        <p style="color: #9ca3af; margin-bottom: 30px;">Ferramentas para cálculos e dimensionamento de redes de fibra óptica.</p>
+        <p style="color: var(--text-muted); margin-bottom: 30px;">Ferramentas para cálculos e dimensionamento de redes de fibra óptica.</p>
 
         <div class="calculadoraOpticaContainer">
           <div class="calculadoraOpticaCard">
@@ -948,34 +1210,29 @@ Atenciosamente,
                 <label>Potência OLT (dBm)</label>
                 <input id="calc_olt" type="number" value="2" step="0.1">
               </div>
-
               <div class="calculadoraField">
                 <label>Distância total (km)</label>
                 <input id="calc_km" type="number" value="5" step="0.1">
               </div>
-
               <div class="calculadoraField">
                 <label>Perda por km</label>
                 <input id="calc_lossKm" type="number" value="0.35" step="0.01">
               </div>
-
               <div class="calculadoraField">
                 <label>Conectores</label>
                 <input id="calc_conn" type="number" value="4" step="1">
               </div>
-
               <div class="calculadoraField">
                 <label>Perda por conector</label>
                 <input id="calc_lossConn" type="number" value="0.2" step="0.01">
               </div>
-
               <div class="calculadoraField">
                 <label>Threshold mínimo (dBm)</label>
                 <input id="calc_threshold" type="number" value="-28" step="0.1">
               </div>
             </div>
 
-            <h3 style="margin-top: 25px; margin-bottom: 15px; color: #9ca3af; font-size: 14px;">Splitters em cascata</h3>
+            <h3 style="margin-top: 25px; margin-bottom: 15px; color: var(--text-muted); font-size: 14px;">Splitters em cascata</h3>
 
             <div id="calc_splitters">
               <div class="splitter-container">
@@ -1013,34 +1270,13 @@ Atenciosamente,
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Fibra (km)</td>
-                  <td>0.35 dB/km</td>
-                </tr>
-                <tr>
-                  <td>Conector</td>
-                  <td>0.2 dB</td>
-                </tr>
-                <tr>
-                  <td>Splitter 1:2</td>
-                  <td>3.5 dB</td>
-                </tr>
-                <tr>
-                  <td>Splitter 1:4</td>
-                  <td>7 dB</td>
-                </tr>
-                <tr>
-                  <td>Splitter 1:8</td>
-                  <td>10.5 dB</td>
-                </tr>
-                <tr>
-                  <td>Splitter 1:16</td>
-                  <td>13.5 dB</td>
-                </tr>
-                <tr>
-                  <td>Splitter 1:32</td>
-                  <td>17 dB</td>
-                </tr>
+                <tr><td>Fibra (km)</td><td>0.35 dB/km</td></tr>
+                <tr><td>Conector</td><td>0.2 dB</td></tr>
+                <tr><td>Splitter 1:2</td><td>3.5 dB</td></tr>
+                <tr><td>Splitter 1:4</td><td>7 dB</td></tr>
+                <tr><td>Splitter 1:8</td><td>10.5 dB</td></tr>
+                <tr><td>Splitter 1:16</td><td>13.5 dB</td></tr>
+                <tr><td>Splitter 1:32</td><td>17 dB</td></tr>
               </tbody>
             </table>
 
@@ -1059,17 +1295,15 @@ Atenciosamente,
       <section id="administracao" class="secao" style="display:none;">
         <h1>Administração</h1>
         
-        <!-- TABS DE NAVEGAÇÃO ADMIN -->
         <div class="adminTabs">
-          <button class="adminTabBtn active" onclick="mostrarAbaAdmin('dashboard')">
+          <button class="adminTabBtn active" onclick="mostrarAbaAdmin('dashboard', event)">
             <i class="fas fa-chart-line"></i> Dashboard
           </button>
-          <button class="adminTabBtn" onclick="mostrarAbaAdmin('usuarios')">
+          <button class="adminTabBtn" onclick="mostrarAbaAdmin('usuarios', event)">
             <i class="fas fa-users-cog"></i> Usuários
           </button>
         </div>
 
-        <!-- ABA DASHBOARD ADMIN -->
         <div id="admin-dashboard" class="abaAdmin ativa" style="display:block;">
           <div class="headerAba">
             <h2>Dashboard Administrativo</h2>
@@ -1111,10 +1345,10 @@ Atenciosamente,
           <div class="adminActions">
             <h3>Ações Administrativas</h3>
             <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
-              <button class="btnPrimario btn-premium" onclick="diagnosticarDados()">
+              <button class="btnPrimario" onclick="diagnosticarDados()">
                 <i class="fas fa-stethoscope"></i> Diagnóstico de Dados
               </button>
-              <button class="btnPrimario btn-premium" onclick="migrarDadosExistentes()">
+              <button class="btnPrimario" onclick="migrarDadosExistentes()">
                 <i class="fas fa-database"></i> Migrar Dados Antigos
               </button>
             </div>
@@ -1126,7 +1360,7 @@ Atenciosamente,
 
           <div class="tableContainer">
             <h3>Últimos Usuários Cadastrados</h3>
-            <table class="tabelaAdmin table-premium">
+            <table>
               <thead>
                 <tr>
                   <th>Nome</th>
@@ -1142,7 +1376,6 @@ Atenciosamente,
           </div>
         </div>
 
-        <!-- ABA USUÁRIOS -->
         <div id="admin-usuarios" class="abaAdmin" style="display:none;">
           <div class="headerAba">
             <h2>Gerenciamento de Usuários</h2>
@@ -1169,7 +1402,7 @@ Atenciosamente,
           </div>
 
           <div class="tableContainer">
-            <table class="tabelaAdmin">
+            <table>
               <thead>
                 <tr>
                   <th>Nome</th>
@@ -1201,31 +1434,21 @@ Atenciosamente,
     <div class="modalContent">
       <div class="modalHeader">
         <h2>Adicionar Cobrança</h2>
-        <button onclick="fecharModalRecebimento()" class="btnFechar">
+        <button onclick="fecharModalRecebimento()" class="btnFechar" aria-label="Fechar">
           <i class="fas fa-times"></i>
         </button>
       </div>
 
       <div class="modalBody">
-        <select id="receb_cliente" class="input-premium" placeholder="Selecione um cliente">
+        <select id="receb_cliente">
           <option value="">-- Selecione um cliente --</option>
         </select>
 
-        <input 
-          type="number" 
-          id="receb_valor" 
-          class="input-premium"
-          placeholder="Valor (R$)"
-          step="0.01"
-        >
+        <input type="number" id="receb_valor" placeholder="Valor (R$)" step="0.01">
 
-        <input 
-          type="date" 
-          id="receb_vencimento"
-          class="input-premium"
-        >
+        <input type="date" id="receb_vencimento">
 
-        <select id="receb_pagamento" class="input-premium">
+        <select id="receb_pagamento">
           <option value="">Selecione a forma de pagamento</option>
           <option value="Dinheiro">💵 Dinheiro</option>
           <option value="PIX">🔵 PIX</option>
@@ -1234,17 +1457,12 @@ Atenciosamente,
           <option value="Transferencia">🏦 Transferência</option>
         </select>
 
-        <select id="receb_status" class="input-premium">
+        <select id="receb_status">
           <option value="Pendente">⏳ Pendente</option>
           <option value="Pago">✅ Pago</option>
         </select>
 
-        <textarea 
-          id="receb_observacao" 
-          class="input-premium"
-          placeholder="Observações..."
-          rows="3"
-        ></textarea>
+        <textarea id="receb_observacao" placeholder="Observações..." rows="3"></textarea>
       </div>
 
       <div class="modalFooter">
@@ -1263,20 +1481,15 @@ Atenciosamente,
     <div class="modalContent">
       <div class="modalHeader">
         <h2>Adicionar Despesa</h2>
-        <button onclick="fecharModalDespesa()" class="btnFechar">
+        <button onclick="fecharModalDespesa()" class="btnFechar" aria-label="Fechar">
           <i class="fas fa-times"></i>
         </button>
       </div>
 
       <div class="modalBody">
-        <input 
-          type="text" 
-          id="desp_descricao" 
-          class="input-premium"
-          placeholder="Descrição da despesa"
-        >
+        <input type="text" id="desp_descricao" placeholder="Descrição da despesa">
 
-        <select id="desp_categoria" class="input-premium">
+        <select id="desp_categoria">
           <option value="">Selecione a categoria</option>
           <option value="Infraestrutura">🏗️ Infraestrutura</option>
           <option value="Pessoal">👥 Pessoal</option>
@@ -1285,31 +1498,16 @@ Atenciosamente,
           <option value="Outros">📌 Outros</option>
         </select>
 
-        <input 
-          type="number" 
-          id="desp_valor" 
-          class="input-premium"
-          placeholder="Valor (R$)"
-          step="0.01"
-        >
+        <input type="number" id="desp_valor" placeholder="Valor (R$)" step="0.01">
 
-        <input 
-          type="date" 
-          id="desp_vencimento"
-          class="input-premium"
-        >
+        <input type="date" id="desp_vencimento">
 
-        <select id="desp_status" class="input-premium">
+        <select id="desp_status">
           <option value="Pendente">⏳ Pendente</option>
           <option value="Pago">✅ Pago</option>
         </select>
 
-        <textarea 
-          id="desp_observacao" 
-          class="input-premium"
-          placeholder="Observações..."
-          rows="3"
-        ></textarea>
+        <textarea id="desp_observacao" placeholder="Observações..." rows="3"></textarea>
       </div>
 
       <div class="modalFooter">
@@ -1328,7 +1526,7 @@ Atenciosamente,
     <div class="modalContent">
       <div class="modalHeader">
         <h2 id="modalUsuarioTitulo">Novo Usuário</h2>
-        <button onclick="fecharModalUsuario()" class="btnFechar">
+        <button onclick="fecharModalUsuario()" class="btnFechar" aria-label="Fechar">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -1336,48 +1534,25 @@ Atenciosamente,
       <div class="modalBody">
         <input type="hidden" id="admin_usuario_id">
         
-        <input 
-          type="text" 
-          id="admin_usuario_nome" 
-          class="input-premium"
-          placeholder="Nome completo"
-        >
+        <input type="text" id="admin_usuario_nome" placeholder="Nome completo">
+        <input type="text" id="admin_usuario_empresa" placeholder="Nome da empresa">
+        <input type="email" id="admin_usuario_email" placeholder="E-mail" autocapitalize="off" spellcheck="false">
+        <input type="tel" id="admin_usuario_telefone" placeholder="Telefone">
 
-        <input 
-          type="text" 
-          id="admin_usuario_empresa" 
-          class="input-premium"
-          placeholder="Nome da empresa"
-        >
-
-        <input 
-          type="email" 
-          id="admin_usuario_email" 
-          class="input-premium"
-          placeholder="E-mail"
-        >
-
-        <input 
-          type="tel" 
-          id="admin_usuario_telefone" 
-          class="input-premium"
-          placeholder="Telefone"
-        >
-
-        <select id="admin_usuario_plano" class="input-premium">
+        <select id="admin_usuario_plano">
           <option value="">Selecione o plano</option>
           <option value="Básico">Básico - R$ 49,90/mês</option>
           <option value="Pro">Pro - R$ 99,90/mês</option>
           <option value="Enterprise">Enterprise - R$ 199,90/mês</option>
         </select>
 
-        <select id="admin_usuario_role" class="input-premium">
+        <select id="admin_usuario_role">
           <option value="CLIENTE">Cliente</option>
           <option value="PROVEDOR">Provedor</option>
           <option value="MASTER_ADMIN">Administrador Mestre</option>
         </select>
 
-        <select id="admin_usuario_status" class="input-premium">
+        <select id="admin_usuario_status">
           <option value="Ativo">Ativo</option>
           <option value="Bloqueado">Bloqueado</option>
         </select>
@@ -1387,6 +1562,28 @@ Atenciosamente,
         <button onclick="fecharModalUsuario()" class="btnSecundario">Cancelar</button>
         <button onclick="salvarUsuario()" class="btnPrimario">
           <i class="fas fa-save"></i> Salvar Usuário
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!-- MODAL - CONFIRMAÇÃO DE EXCLUSÃO (Premium) -->
+  <!-- ============================= -->
+  <div id="confirmDeleteOverlay" class="confirm-delete-overlay" style="display:none;" onclick="fecharModalConfirmacao()"></div>
+  <div id="confirmDeleteModal" class="confirm-delete-modal" style="display:none;">
+    <div class="confirm-delete-box">
+      <div class="confirm-delete-icon">
+        <i class="fas fa-trash-can"></i>
+      </div>
+      <h3 id="confirmDeleteTitle">Excluir Registro?</h3>
+      <p id="confirmDeleteMessage">Tem certeza que deseja excluir este registro? Esta ação não poderá ser desfeita.</p>
+      <div class="confirm-delete-actions">
+        <button id="confirmDeleteCancelBtn" class="btnSecundario" onclick="fecharModalConfirmacao()">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button id="confirmDeleteBtn" class="btn-confirm-delete">
+          <i class="fas fa-trash-can"></i> Excluir
         </button>
       </div>
     </div>

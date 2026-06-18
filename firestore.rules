@@ -6,12 +6,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Get tenantId from auth claims or fallback to uid
     function getTenantId() {
       return request.auth.token.tenantId ? request.auth.token.tenantId : request.auth.uid;
     }
 
-    // Check if user is Super Admin (MASTER_ADMIN or superadmin)
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.token.role == 'MASTER_ADMIN' ||
@@ -19,19 +17,15 @@ service cloud.firestore {
       );
     }
 
-    // Check if the document belongs to the user's tenant
     function ownsDoc() {
       return isSignedIn() && resource.data.tenantId == getTenantId();
     }
 
-    // Check if the new document belongs to the user's tenant
     function ownsNewDoc() {
       return isSignedIn() && request.resource.data.tenantId == getTenantId();
     }
 
-    // ===== USUARIOS =====
     match /usuarios/{userId} {
-      // Super admin can read/write all users
       allow read: if isSuperAdmin() || request.auth.uid == userId;
       allow create: if isSuperAdmin() || (request.auth.uid == userId 
         && request.resource.data.uid == request.auth.uid);
@@ -39,13 +33,18 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // ===== PLANOS_SA (Super Admin Plans) =====
+    match /empresas/{empresaId} {
+      allow read: if isSuperAdmin() || empresaId == getTenantId();
+      allow create: if isSuperAdmin() || (empresaId == getTenantId() && isSignedIn());
+      allow update: if isSuperAdmin() || empresaId == getTenantId();
+      allow delete: if isSuperAdmin();
+    }
+
     match /planos_sa/{planoId} {
       allow read: if isSignedIn();
       allow write: if isSuperAdmin();
     }
 
-    // ===== TENANT-SCOPED COLLECTIONS =====
     match /clientes/{clienteId} {
       allow read: if isSuperAdmin() || ownsDoc();
       allow create: if isSuperAdmin() || ownsNewDoc();
@@ -87,22 +86,37 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
-    // ===== CONFIGURAÇÕES =====
     match /configuracoes/{configId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin() || ownsDoc();
+      allow write: if isSuperAdmin();
     }
 
-    // ===== AUDITORIA =====
     match /auditoria/{auditoriaId} {
-      allow create: if isSuperAdmin() || ownsNewDoc();
-      allow read: if isSuperAdmin() || ownsDoc();
+      allow create: if isSignedIn();
+      allow read: if isSuperAdmin();
       allow update, delete: if false;
     }
 
-    // ===== BACKUPS =====
+    match /auditLogs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
+    match /providers/{providerId} {
+      allow read: if isSuperAdmin() || providerId == getTenantId();
+      allow create: if isSuperAdmin() || (request.resource.data.tenantId == getTenantId() 
+        && providerId == getTenantId());
+      allow update: if isSuperAdmin() || providerId == getTenantId();
+      allow delete: if isSuperAdmin();
+    }
+
     match /backups/{backupId} {
       allow read, write: if isSuperAdmin() || ownsDoc();
+    }
+
+    match /sessions/{sessionId} {
+      allow read, write: if isSuperAdmin();
     }
   }
 }

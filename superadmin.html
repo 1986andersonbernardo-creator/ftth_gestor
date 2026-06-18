@@ -1238,6 +1238,62 @@
   </div>
 
   <!-- ===========================
+       MODAL BLOQUEAR EMPRESA
+       =========================== -->
+  <div class="sa-modal-overlay" id="sa-modal-bloquear">
+    <div class="sa-modal" style="max-width:500px;">
+      <div class="sa-modal-header" style="border-color:var(--sa-danger);">
+        <h3><i class="fas fa-ban" style="color:var(--sa-danger);"></i> Bloquear Empresa</h3>
+        <button class="sa-modal-close" onclick="fecharModal('sa-modal-bloquear')"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="sa-modal-body">
+        <input type="hidden" id="sa-bloquear-empresa-id">
+        <div style="margin-bottom:16px;">
+          <strong id="sa-bloquear-empresa-nome" style="font-size:16px;"></strong>
+        </div>
+        <div class="sa-form-group">
+          <label><i class="fas fa-exclamation-triangle" style="color:var(--sa-warning);"></i> Motivo do Bloqueio *</label>
+          <textarea id="sa-bloquear-motivo" rows="4" placeholder="Descreva o motivo do bloqueio..." required></textarea>
+        </div>
+        <div style="padding:12px;background:rgba(239,68,68,0.1);border-radius:10px;font-size:13px;color:var(--sa-text-muted);">
+          <i class="fas fa-info-circle" style="color:var(--sa-danger);"></i> Ao bloquear, o acesso da empresa ao sistema será imediatamente removido.
+        </div>
+      </div>
+      <div class="sa-modal-footer">
+        <button class="sa-btn sa-btn-outline" onclick="fecharModal('sa-modal-bloquear')">Cancelar</button>
+        <button class="sa-btn sa-btn-danger" onclick="confirmarBloqueio()"><i class="fas fa-lock"></i> Bloquear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================
+       MODAL DESBLOQUEAR EMPRESA
+       =========================== -->
+  <div class="sa-modal-overlay" id="sa-modal-desbloquear">
+    <div class="sa-modal" style="max-width:500px;">
+      <div class="sa-modal-header" style="border-color:var(--sa-success);">
+        <h3><i class="fas fa-unlock" style="color:var(--sa-success);"></i> Desbloquear Empresa</h3>
+        <button class="sa-modal-close" onclick="fecharModal('sa-modal-desbloquear')"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="sa-modal-body">
+        <input type="hidden" id="sa-desbloquear-empresa-id">
+        <div style="margin-bottom:16px;">
+          <strong id="sa-desbloquear-empresa-nome" style="font-size:16px;"></strong>
+        </div>
+        <p style="color:var(--sa-text-muted);font-size:14px;margin-bottom:16px;">Tem certeza que deseja desbloquear esta empresa?</p>
+        <div class="sa-form-group">
+          <label>Observação (opcional)</label>
+          <textarea id="sa-desbloquear-observacao" rows="3" placeholder="Motivo do desbloqueio..."></textarea>
+        </div>
+      </div>
+      <div class="sa-modal-footer">
+        <button class="sa-btn sa-btn-outline" onclick="fecharModal('sa-modal-desbloquear')">Cancelar</button>
+        <button class="sa-btn sa-btn-success" onclick="confirmarDesbloqueio()"><i class="fas fa-unlock"></i> Desbloquear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================
        MODAL PLANO
        =========================== -->
   <div class="sa-modal-overlay" id="sa-modal-plano">
@@ -1825,22 +1881,99 @@
     }
 
     async function bloquearEmpresa(id) {
-      if (!confirm('Deseja bloquear esta empresa?')) return;
+      const empresa = saState.empresas.find(e => e.id === id);
+      if (!empresa) { saToast('Empresa não encontrada', 'error'); return; }
+      document.getElementById('sa-bloquear-empresa-id').value = id;
+      document.getElementById('sa-bloquear-empresa-nome').textContent = empresa.nomeEmpresa || 'Empresa';
+      document.getElementById('sa-bloquear-motivo').value = '';
+      abrirModal('sa-modal-bloquear');
+    }
+
+    async function confirmarBloqueio() {
+      const id = document.getElementById('sa-bloquear-empresa-id').value;
+      const motivo = document.getElementById('sa-bloquear-motivo').value.trim();
+      if (!motivo) { saToast('Informe o motivo do bloqueio', 'error'); return; }
       try {
-        await db.collection('usuarios').doc(id).update({ status: 'Bloqueado', updatedAt: new Date() });
+        const now = new Date();
+        await db.collection('usuarios').doc(id).update({
+          status: 'Bloqueado',
+          blockedReason: motivo,
+          blockedAt: firebase.firestore.Timestamp.fromDate(now),
+          blockedBy: saUser.uid,
+          updatedAt: now
+        });
+        // Also block the empresa document
+        try {
+          await db.collection('empresas').doc(id).update({
+            status: 'blocked',
+            blockedReason: motivo,
+            blockedAt: firebase.firestore.Timestamp.fromDate(now),
+            blockedBy: saUser.uid,
+            updatedAt: now
+          });
+        } catch (e) {}
         saToast('Empresa bloqueada com sucesso!', 'success');
+        fecharModal('sa-modal-bloquear');
         carregarEmpresas();
         carregarDashboard();
+        // Registrar audit log
+        try {
+          await db.collection('auditLogs').add({
+            userId: saUser.uid,
+            empresaId: id,
+            acao: 'empresaBloqueada',
+            data: now,
+            detalhes: `Empresa bloqueada por: ${motivo}`,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (e) {}
       } catch (e) { saToast('Erro: ' + e.message, 'error'); }
     }
 
     async function desbloquearEmpresa(id) {
-      if (!confirm('Deseja desbloquear esta empresa?')) return;
+      const empresa = saState.empresas.find(e => e.id === id);
+      if (!empresa) { saToast('Empresa não encontrada', 'error'); return; }
+      document.getElementById('sa-desbloquear-empresa-id').value = id;
+      document.getElementById('sa-desbloquear-empresa-nome').textContent = empresa.nomeEmpresa || 'Empresa';
+      document.getElementById('sa-desbloquear-observacao').value = '';
+      abrirModal('sa-modal-desbloquear');
+    }
+
+    async function confirmarDesbloqueio() {
+      const id = document.getElementById('sa-desbloquear-empresa-id').value;
+      const observacao = document.getElementById('sa-desbloquear-observacao').value.trim();
       try {
-        await db.collection('usuarios').doc(id).update({ status: 'Ativo', updatedAt: new Date() });
+        const now = new Date();
+        await db.collection('usuarios').doc(id).update({
+          status: 'Ativo',
+          unblockedAt: firebase.firestore.Timestamp.fromDate(now),
+          unblockedBy: saUser.uid,
+          updatedAt: now
+        });
+        // Also unblock the empresa document
+        try {
+          await db.collection('empresas').doc(id).update({
+            status: 'active',
+            unblockedAt: firebase.firestore.Timestamp.fromDate(now),
+            unblockedBy: saUser.uid,
+            updatedAt: now
+          });
+        } catch (e) {}
         saToast('Empresa desbloqueada com sucesso!', 'success');
+        fecharModal('sa-modal-desbloquear');
         carregarEmpresas();
         carregarDashboard();
+        // Registrar audit log
+        try {
+          await db.collection('auditLogs').add({
+            userId: saUser.uid,
+            empresaId: id,
+            acao: 'empresaDesbloqueada',
+            data: now,
+            detalhes: observacao || 'Empresa desbloqueada',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (e) {}
       } catch (e) { saToast('Erro: ' + e.message, 'error'); }
     }
 

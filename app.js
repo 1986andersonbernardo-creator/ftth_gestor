@@ -1,6 +1,6 @@
 // ===========================
-// CONTROLISP - APP PRINCIPAL
-// Versão: 3.0 (Refatorado)
+// CONTROLISP - APP PRINCIPAL v4.0
+// Versão Premium SaaS - Logo Fix + Block System
 // ===========================
 
 // ===========================
@@ -25,8 +25,30 @@ let usuarioAtual = {
   tenantId: null
 };
 
+let clientesWhatsApp = [];
+let clientesSelecionadosWhatsApp = new Set();
+let configuracoesWhatsApp = {
+  templates: {},
+  nomeEmpresa: "Sua Empresa",
+  apiProvider: "",
+  apiKey: "",
+  apiUrl: ""
+};
+let usuarioEditando = null;
+
+// Chart instances
+let chartReceitaMensal = null;
+let chartClientesPorPlano = null;
+let chartReceitaPorPlano = null;
+let chartEvolucaoClientes = null;
+let chartInadimplenciaMensal = null;
+
+// ===========================
+// AUTH & TENANT HELPERS
+// ===========================
+
 function isMasterAdmin() {
-  return usuarioAtual.role === 'MASTER_ADMIN';
+  return usuarioAtual.role === 'MASTER_ADMIN' || usuarioAtual.role === 'superadmin';
 }
 
 function isProvedor() {
@@ -50,30 +72,51 @@ async function carregarUsuarioAtual() {
     if (tokenResult.claims.role) usuarioAtual.role = tokenResult.claims.role;
     if (tokenResult.claims.tenantId) usuarioAtual.tenantId = tokenResult.claims.tenantId;
   } catch (erro) {
-    console.warn('Não foi possível obter custom claims, usando dados do perfil:', erro);
+    console.warn('Não foi possível obter custom claims:', erro);
   }
 
   try {
-    const userDoc = await db.collection('usuarios').doc(usuarioAtual.uid).get();
-    if (userDoc.exists) {
-      const data = userDoc.data();
+    // Try empresas collection first (used in signup)
+    const empresaDoc = await db.collection('empresas').doc(usuarioAtual.uid).get();
+    if (empresaDoc.exists) {
+      const data = empresaDoc.data();
+      // Check if company is blocked
+      if (data.status === 'blocked' || data.status === 'suspended' || data.status === 'cancelled') {
+        throw { code: 'EMPRESA_BLOQUEADA', message: 'Seu acesso foi bloqueado. Entre em contato com o suporte.', data: data };
+      }
       if (data.role) usuarioAtual.role = data.role;
       if (data.tenantId) usuarioAtual.tenantId = data.tenantId;
+    } else {
+      // Fallback to usuarios collection
+      const userDoc = await db.collection('usuarios').doc(usuarioAtual.uid).get();
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        if (data.role) usuarioAtual.role = data.role;
+        if (data.tenantId) usuarioAtual.tenantId = data.tenantId;
+      }
     }
   } catch (erro) {
-    console.warn('Erro ao buscar perfil de usuário:', erro);
+    if (erro.code === 'EMPRESA_BLOQUEADA') throw erro;
+    console.warn('Erro ao buscar perfil:', erro);
   }
 
   mostrarAdminIfNeeded();
   return usuarioAtual;
 }
 
-function secureCollection(collectionName) {
-  const tenantId = getTenantId();
-  if (!tenantId || tenantId === 'default') {
-    throw new Error('Tenant ID não definido. Verifique o login e as custom claims.');
+async function verificarStatusEmpresa(uid) {
+  try {
+    const empresaDoc = await db.collection('empresas').doc(uid).get();
+    if (empresaDoc.exists) {
+      const data = empresaDoc.data();
+      if (data.status === 'blocked' || data.status === 'suspended' || data.status === 'cancelled') {
+        return { bloqueado: true, motivo: data.blockedReason || data.suspensionReason || 'Conta bloqueada', status: data.status };
+      }
+    }
+    return { bloqueado: false };
+  } catch (e) {
+    return { bloqueado: false };
   }
-  return db.collection(collectionName).where('tenantId', '==', tenantId);
 }
 
 function secureData(data) {
@@ -98,215 +141,25 @@ function secureUpdate(data) {
 function mostrarAdminIfNeeded() {
   const btnAdmin = document.getElementById('btnAdmin');
   if (!btnAdmin) return;
-
-  if (isMasterAdmin()) {
-    btnAdmin.style.display = 'flex';
-  } else {
-    btnAdmin.style.display = 'none';
-  }
+  btnAdmin.style.display = isMasterAdmin() ? 'flex' : 'none';
 }
 
-// Listener references for cleanup
+// ===========================
+// LISTENER REFERENCES
+// ===========================
+
 let clientesListener = null;
 let planosListener = null;
 let financeiroListeners = [];
-let fluxoCaixaListeners = [];
 let recebimentosListener = null;
 let despesasListener = null;
-let inadimplentesListeners = [];
-let whatsappListeners = [];
-let adminListeners = [];
 let clientesWhatsAppListener = null;
 let historicoWhatsAppListener = null;
-let adminDashboardListener = null;
-let adminUsuariosListener = null;
 let cobrancasWhatsAppListener = null;
 let inadimplentesMensalidadesListener = null;
 let inadimplentesRecebimentosListener = null;
-
-// ===========================
-// THEME MANAGEMENT
-// ===========================
-
-function toggleTheme() {
-  const html = document.documentElement;
-  const currentTheme = html.getAttribute('data-theme');
-  const themeIcon = document.getElementById('themeIcon');
-
-  if (currentTheme === 'light') {
-    html.setAttribute('data-theme', 'dark');
-    localStorage.setItem('theme', 'dark');
-    if (themeIcon) {
-      themeIcon.classList.remove('fa-sun');
-      themeIcon.classList.add('fa-moon');
-    }
-  } else {
-    html.setAttribute('data-theme', 'light');
-    localStorage.setItem('theme', 'light');
-    if (themeIcon) {
-      themeIcon.classList.remove('fa-moon');
-      themeIcon.classList.add('fa-sun');
-    }
-  }
-}
-
-function toggleNotifications() {
-  // Placeholder para toggle de notificações
-  console.log("Notificações clicadas");
-  const badge = document.querySelector('.notification-badge');
-  if (badge) {
-    const count = parseInt(badge.textContent) || 0;
-    if (count > 0) {
-      alert(`Você tem ${count} notificação(ns) pendente(s).`);
-    } else {
-      alert("Nenhuma notificação no momento.");
-    }
-  }
-}
-
-function initializeTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  const html = document.documentElement;
-  const themeIcon = document.getElementById('themeIcon');
-
-  html.setAttribute('data-theme', savedTheme);
-
-  if (themeIcon) {
-    if (savedTheme === 'light') {
-      themeIcon.classList.remove('fa-moon');
-      themeIcon.classList.add('fa-sun');
-    } else {
-      themeIcon.classList.remove('fa-sun');
-      themeIcon.classList.add('fa-moon');
-    }
-  }
-}
-
-// ===========================
-// SECURITY - INPUT SANITIZATION
-// ===========================
-
-function sanitizarInput(input) {
-  if (!input) return "";
-  let sanitized = input.replace(/<[^>]*>/g, "");
-  sanitized = sanitized.replace(/[<>\"'&]/g, "");
-  sanitized = sanitized.replace(/javascript:/gi, "");
-  sanitized = sanitized.replace(/on\w+\s*=/gi, "");
-  return sanitized.trim();
-}
-
-function sanitizarEmail(email) {
-  if (!email) return "";
-  let sanitized = email.toLowerCase().trim();
-  sanitized = sanitized.replace(/<[^>]*>/g, "");
-  sanitized = sanitized.replace(/javascript:/gi, "");
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(sanitized)) return "";
-  return sanitized;
-}
-
-function sanitizarTelefone(telefone) {
-  if (!telefone) return "";
-  let sanitized = telefone.replace(/\D/g, "");
-  if (sanitized.length > 11) sanitized = sanitized.substring(0, 11);
-  return sanitized;
-}
-
-function sanitizarTexto(texto) {
-  if (!texto) return "";
-  let sanitized = texto.replace(/<[^>]*>/g, "");
-  sanitized = sanitized.replace(/javascript:/gi, "");
-  sanitized = sanitized.replace(/on\w+\s*=/gi, "");
-  return sanitized.trim();
-}
-
-// ===========================
-// AUDIT LOGGING
-// ===========================
-
-async function registrarAuditoria(acao, descricao) {
-  if (!auth.currentUser) return;
-  try {
-    await db.collection("auditoria").add({
-      tenantId: getTenantId(),
-      createdBy: usuarioAtual.uid,
-      usuarioEmail: auth.currentUser.email,
-      acao: acao,
-      descricao: descricao,
-      dataHora: new Date(),
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  } catch (erro) {
-    console.error("Erro ao registrar auditoria:", erro);
-  }
-}
-
-// ===========================
-// SYSTEM CONFIGURATION
-// ===========================
-
-let configuracoesSistema = {
-  planos: {
-    "Básico": 49.90,
-    "Pro": 99.90,
-    "Enterprise": 199.90
-  },
-  paginacao: {
-    clientes: 20,
-    recebimentos: 20,
-    despesas: 20
-  }
-};
-
-async function carregarConfiguracoesSistema() {
-  try {
-    const configDocId = isMasterAdmin() ? 'sistema' : usuarioAtual.tenantId;
-    const doc = await db.collection("configuracoes").doc(configDocId).get();
-    if (doc.exists) {
-      configuracoesSistema = { ...configuracoesSistema, ...doc.data() };
-    }
-  } catch (erro) {
-    console.error("Erro ao carregar configurações do sistema:", erro);
-  }
-}
-
-// ===========================
-// BACKUP SYSTEM
-// ===========================
-
-async function criarBackup() {
-  if (!auth.currentUser) return;
-  try {
-    const backupId = `backup_${auth.currentUser.uid}_${new Date().toISOString()}`;
-    const backupRef = db.collection("backups").doc(backupId);
-    const collections = ["clientes", "planos", "recebimentos", "despesas", "mensalidades", "whatsapp_historico"];
-    const backupData = {};
-    for (const collection of collections) {
-      const snapshot = await db.collection(collection)
-        .where("tenantId", "==", getTenantId())
-        .get();
-      backupData[collection] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        data: doc.data()
-      }));
-    }
-    await backupRef.set({
-      tenantId: getTenantId(),
-      createdBy: usuarioAtual.uid,
-      data: backupData,
-      criadoEm: new Date(),
-      tamanho: JSON.stringify(backupData).length
-    });
-    console.log("Backup criado com sucesso:", backupId);
-    await registrarAuditoria("backup", "Backup criado: " + backupId);
-  } catch (erro) {
-    console.error("Erro ao criar backup:", erro);
-  }
-}
-
-// ===========================
-// LISTENER CLEANUP
-// ===========================
+let adminDashboardListener = null;
+let adminUsuariosListener = null;
 
 function limparListeners() {
   if (clientesListener) { clientesListener(); clientesListener = null; }
@@ -320,86 +173,442 @@ function limparListeners() {
   if (cobrancasWhatsAppListener) { cobrancasWhatsAppListener(); cobrancasWhatsAppListener = null; }
   if (inadimplentesMensalidadesListener) { inadimplentesMensalidadesListener(); inadimplentesMensalidadesListener = null; }
   if (inadimplentesRecebimentosListener) { inadimplentesRecebimentosListener(); inadimplentesRecebimentosListener = null; }
-
-  financeiroListeners.forEach(listener => { if (listener) listener(); });
+  financeiroListeners.forEach(l => { if (l) l(); });
   financeiroListeners = [];
+}
 
-  fluxoCaixaListeners.forEach(listener => { if (listener) listener(); });
-  fluxoCaixaListeners = [];
+// ===========================
+// THEME
+// ===========================
 
-  inadimplentesListeners.forEach(listener => { if (listener) listener(); });
-  inadimplentesListeners = [];
+function initializeTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+}
 
-  whatsappListeners.forEach(listener => { if (listener) listener(); });
-  whatsappListeners = [];
+// ===========================
+// PROVIDER IDENTITY
+// ===========================
 
-  adminListeners.forEach(listener => { if (listener) listener(); });
-  adminListeners = [];
+function carregarProviderData() {
+  if (!auth.currentUser) return;
+  const providerRef = db.collection("providers").doc(getTenantId());
+
+  providerRef.onSnapshot((doc) => {
+    const providerNameEl = document.getElementById("providerNameText");
+    const providerLogoEl = document.getElementById("providerLogo");
+    const sidebarLogoEl = document.getElementById("logoSidebar");
+    const loginLogoEls = document.querySelectorAll(".logoLogin");
+
+    if (doc.exists) {
+      const data = doc.data();
+      if (data.providerName && providerNameEl) {
+        providerNameEl.textContent = data.providerName.substring(0, 50);
+      } else if (providerNameEl) {
+        providerNameEl.textContent = "Meu Provedor";
+      }
+
+      if (data.logoUrl) {
+        const logoUrl = data.logoUrl;
+        [providerLogoEl, sidebarLogoEl].forEach(el => {
+          if (el) { el.src = logoUrl; el.onerror = function() { this.src = "img/logo.png"; }; }
+        });
+        loginLogoEls.forEach(el => { el.src = logoUrl; el.onerror = function() { this.src = "img/logo.png"; }; });
+      } else {
+        const fallback = "img/logo.png";
+        [providerLogoEl, sidebarLogoEl].forEach(el => { if (el) el.src = fallback; });
+        loginLogoEls.forEach(el => { el.src = fallback; });
+      }
+    } else {
+      if (providerNameEl) providerNameEl.textContent = "Meu Provedor";
+      criarProviderDoc();
+    }
+  }, () => {
+    const el = document.getElementById("providerNameText");
+    if (el) el.textContent = "Meu Provedor";
+  });
+}
+
+async function criarProviderDoc() {
+  if (!auth.currentUser) return;
+  try {
+    let nomeProvedor = "Meu Provedor";
+    try {
+      const empresaDoc = await db.collection("empresas").doc(getTenantId()).get();
+      if (empresaDoc.exists && empresaDoc.data().nomeProvedor) {
+        nomeProvedor = empresaDoc.data().nomeProvedor;
+      }
+    } catch (e) {}
+    
+    // Also check usuarios collection
+    try {
+      const userDoc = await db.collection("usuarios").doc(getTenantId()).get();
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        if (data.nomeEmpresa) nomeProvedor = data.nomeEmpresa;
+        else if (data.nomeProvedor) nomeProvedor = data.nomeProvedor;
+      }
+    } catch (e) {}
+    
+    await db.collection("providers").doc(getTenantId()).set({
+      providerName: nomeProvedor, logoUrl: "", tenantId: getTenantId(),
+      updatedAt: new Date(), updatedBy: usuarioAtual.uid
+    }, { merge: true });
+    const el = document.getElementById("providerNameText");
+    if (el) el.textContent = nomeProvedor;
+  } catch (erro) {
+    console.error("Erro ao criar provider doc:", erro);
+  }
+}
+
+async function uploadProviderLogo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const tiposPermitidos = ["image/jpeg", "image/png", "image/webp"];
+  if (!tiposPermitidos.includes(file.type)) {
+    showToast("Formato inválido. Use JPG, PNG ou WEBP.", "error", "Erro");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast("A imagem deve ter no máximo 5MB.", "error", "Erro");
+    return;
+  }
+  try {
+    showToast("Enviando logo...", "info", "Upload");
+    const tenantId = getTenantId();
+    const storagePath = `logos/${tenantId}/${Date.now()}_${file.name}`;
+    const storageRef = storage.ref(storagePath);
+    
+    // Compress to max 600px for better quality
+    const imagemComprimida = await comprimirImagem(file, 600);
+    const snapshot = await storageRef.put(imagemComprimida);
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    
+    // Save URL to providers collection
+    await db.collection("providers").doc(tenantId).set({
+      logoUrl: downloadURL, updatedAt: new Date(), updatedBy: usuarioAtual.uid
+    }, { merge: true });
+    
+    // Also save to empresas collection for cross-reference
+    try {
+      await db.collection("empresas").doc(tenantId).set({
+        logoUrl: downloadURL, updatedAt: new Date()
+      }, { merge: true });
+    } catch (e) {}
+    
+    // Update all logo elements immediately
+    const providerLogoEl = document.getElementById("providerLogo");
+    const sidebarLogoEl = document.getElementById("logoSidebar");
+    const loginLogoEls = document.querySelectorAll(".logoLogin");
+    if (providerLogoEl) providerLogoEl.src = downloadURL;
+    if (sidebarLogoEl) sidebarLogoEl.src = downloadURL;
+    loginLogoEls.forEach(el => { el.src = downloadURL; });
+    
+    showToast("Logo atualizada com sucesso!", "success", "Sucesso");
+    await registrarAuditoria("logo_atualizada", "Logo do provedor alterada");
+  } catch (erro) {
+    console.error("Erro ao fazer upload da logo:", erro);
+    showToast("Erro ao fazer upload. Tente novamente.", "error", "Erro");
+  }
+  event.target.value = "";
+}
+
+function comprimirImagem(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement("canvas");
+      let width = img.width, height = img.height;
+      
+      // Only resize if larger than maxSize
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = Math.round(height * (maxSize / width));
+          width = maxSize;
+        } else {
+          width = Math.round(width * (maxSize / height));
+          height = maxSize;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Use PNG for transparency, JPEG for photos
+      const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+      canvas.toBlob((blob) => {
+        blob ? resolve(blob) : reject(new Error("Falha ao comprimir"));
+      }, outputType, 0.85);
+    };
+    img.onerror = () => reject(new Error("Falha ao carregar imagem"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function editarNomeProvedor() {
+  const currentName = document.getElementById("providerNameText")?.textContent || "Meu Provedor";
+  const novoNome = prompt("Digite o nome do seu provedor (máx. 50 caracteres):", currentName);
+  if (novoNome === null || novoNome.trim() === "") return;
+  const nomeLimpo = sanitizarInput(novoNome).substring(0, 50);
+  if (!nomeLimpo) { showToast("O nome não pode ficar vazio.", "error", "Erro"); return; }
+  db.collection("providers").doc(getTenantId()).set({
+    providerName: nomeLimpo, updatedAt: new Date(), updatedBy: usuarioAtual.uid
+  }, { merge: true })
+  .then(() => {
+    document.getElementById("providerNameText").textContent = nomeLimpo;
+    showToast("Nome atualizado com sucesso!", "success", "Sucesso");
+    registrarAuditoria("nome_provedor_atualizado", `Nome alterado para: ${nomeLimpo}`);
+  })
+  .catch(() => showToast("Erro ao salvar nome.", "error", "Erro"));
+}
+
+// ===========================
+// INPUT SANITIZATION
+// ===========================
+
+function sanitizarInput(input) {
+  if (!input) return "";
+  return input.replace(/<[^>]*>/g, "").replace(/[<>\"'&]/g, "").replace(/javascript:/gi, "").replace(/on\w+\s*=/gi, "").trim();
+}
+
+function sanitizarEmail(email) {
+  if (!email) return "";
+  const sanitized = email.toLowerCase().trim().replace(/<[^>]*>/g, "").replace(/javascript:/gi, "");
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitized) ? sanitized : "";
+}
+
+function sanitizarTelefone(telefone) {
+  if (!telefone) return "";
+  return telefone.replace(/\D/g, "").substring(0, 11);
+}
+
+function sanitizarTexto(texto) {
+  if (!texto) return "";
+  return texto.replace(/<[^>]*>/g, "").replace(/javascript:/gi, "").replace(/on\w+\s*=/gi, "").trim();
+}
+
+// ===========================
+// AUDIT LOGGING
+// ===========================
+
+async function registrarAuditoria(acao, descricao) {
+  if (!auth.currentUser) return;
+  try {
+    await db.collection("auditoria").add({
+      tenantId: getTenantId(), createdBy: usuarioAtual.uid,
+      usuarioEmail: auth.currentUser.email, acao: acao,
+      descricao: descricao, dataHora: new Date(),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (erro) { console.error("Erro ao registrar auditoria:", erro); }
+}
+
+async function registrarAuditLog(empresaId, acao, detalhes) {
+  if (!auth.currentUser) return;
+  try {
+    await db.collection("auditLogs").add({
+      userId: auth.currentUser.uid,
+      empresaId: empresaId || getTenantId(),
+      acao: acao,
+      data: new Date(),
+      detalhes: detalhes,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (erro) { console.error("Erro ao registrar auditLog:", erro); }
+}
+
+// ===========================
+// SYSTEM CONFIG
+// ===========================
+
+let configuracoesSistema = {
+  planos: { "Básico": 49.90, "Pro": 99.90, "Enterprise": 199.90 },
+  paginacao: { clientes: 20, recebimentos: 20, despesas: 20 }
+};
+
+async function carregarConfiguracoesSistema() {
+  try {
+    const configDocId = isMasterAdmin() ? 'sistema' : usuarioAtual.tenantId;
+    const doc = await db.collection("configuracoes").doc(configDocId).get();
+    if (doc.exists) configuracoesSistema = { ...configuracoesSistema, ...doc.data() };
+  } catch (erro) { console.error("Erro ao carregar config:", erro); }
+}
+
+// ===========================
+// TOAST NOTIFICATION SYSTEM
+// ===========================
+
+function showToast(message, type = 'info', title = '') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const icons = {
+    success: 'fa-check-circle', error: 'fa-exclamation-circle',
+    info: 'fa-info-circle', warning: 'fa-exclamation-triangle'
+  };
+  const titles = {
+    success: 'Sucesso', error: 'Erro', warning: 'Atenção', info: 'Informação'
+  };
+
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.innerHTML = `
+    <div class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></div>
+    <div class="toast-content">
+      <div class="toast-title">${title || titles[type] || 'Info'}</div>
+      <div class="toast-message">${message}</div>
+    </div>
+    <button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
+
+  container.appendChild(toast);
+  container.style.display = 'block';
+
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.classList.add('toast-out');
+      setTimeout(() => {
+        if (toast.parentElement) { toast.remove(); if (container.children.length === 0) container.style.display = 'none'; }
+      }, 300);
+    }
+  }, 4000);
+}
+
+// ===========================
+// INPUT MASKS
+// ===========================
+
+function aplicarMascaraWhatsApp(input) {
+  input.addEventListener('input', function () {
+    let value = this.value.replace(/\D/g, '').substring(0, 11);
+    if (value.length > 6) this.value = '(' + value.substring(0, 2) + ') ' + value.substring(2, 7) + '-' + value.substring(7);
+    else if (value.length > 2) this.value = '(' + value.substring(0, 2) + ') ' + value.substring(2);
+    else if (value.length > 0) this.value = '(' + value;
+  });
+}
+
+function aplicarMascaraCpfCnpj(input) {
+  input.addEventListener('input', function () {
+    let value = this.value.replace(/\D/g, '').substring(0, 14);
+    if (value.length <= 11) {
+      if (value.length > 9) this.value = value.substring(0,3)+'.'+value.substring(3,6)+'.'+value.substring(6,9)+'-'+value.substring(9);
+      else if (value.length > 6) this.value = value.substring(0,3)+'.'+value.substring(3,6)+'.'+value.substring(6);
+      else if (value.length > 3) this.value = value.substring(0,3)+'.'+value.substring(3);
+    } else {
+      if (value.length > 12) this.value = value.substring(0,2)+'.'+value.substring(2,5)+'.'+value.substring(5,8)+'/'+value.substring(8,12)+'-'+value.substring(12);
+      else if (value.length > 8) this.value = value.substring(0,2)+'.'+value.substring(2,5)+'.'+value.substring(5,8)+'/'+value.substring(8);
+      else if (value.length > 5) this.value = value.substring(0,2)+'.'+value.substring(2,5)+'.'+value.substring(5);
+      else if (value.length > 2) this.value = value.substring(0,2)+'.'+value.substring(2);
+    }
+  });
+}
+
+function toggleSenhaVisibilidade(inputId, btnElement) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const icon = btnElement.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+  } else {
+    input.type = 'password';
+    if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+  }
+}
+
+// ===========================
+// BLOCKED SCREEN
+// ===========================
+
+function mostrarTelaBloqueio(motivo, status) {
+  const loginTela = document.getElementById("loginTela");
+  const sistema = document.getElementById("sistema");
+  const blockedTela = document.getElementById("blockedTela");
+  
+  if (loginTela) loginTela.style.display = "none";
+  if (sistema) sistema.style.display = "none";
+  if (blockedTela) {
+    const motivoEl = document.getElementById("blockedMotivo");
+    const statusEl = document.getElementById("blockedStatus");
+    if (motivoEl) motivoEl.textContent = motivo || "Conta bloqueada pelo administrador.";
+    if (statusEl) {
+      const statusLabels = {
+        'blocked': 'Conta Bloqueada',
+        'suspended': 'Conta Suspensa',
+        'cancelled': 'Conta Cancelada'
+      };
+      statusEl.textContent = statusLabels[status] || 'Acesso Restrito';
+    }
+    blockedTela.style.display = "flex";
+  }
+}
+
+function esconderTelaBloqueio() {
+  const blockedTela = document.getElementById("blockedTela");
+  if (blockedTela) blockedTela.style.display = "none";
 }
 
 // ===========================
 // LOGIN
 // ===========================
 
-function fazerLogin() {
+async function fazerLogin() {
   const email = sanitizarEmail(document.getElementById("usuario").value);
   const senha = document.getElementById("senha").value;
+  if (!email || !senha) { showToast("Preencha e-mail e senha!", "error", "Login"); return; }
 
-  if (!email || !senha) {
-    alert("Por favor, preencha e-mail e senha!");
-    return;
-  }
-
-  auth.signInWithEmailAndPassword(email, senha)
-    .then(async () => {
+  try {
+    const userCredential = await auth.signInWithEmailAndPassword(email, senha);
+    
+    // Check if company is blocked before proceeding
+    try {
       await carregarUsuarioAtual();
-      
-      // Redirect superadmin to superadmin panel
-      if (usuarioAtual.role === 'superadmin' || isMasterAdmin()) {
-        window.location.href = 'superadmin.html';
+    } catch (blockError) {
+      if (blockError.code === 'EMPRESA_BLOQUEADA') {
+        await auth.signOut();
+        mostrarTelaBloqueio(blockError.message, blockError.data?.status);
         return;
       }
-      
-      document.getElementById("loginTela").style.display = "none";
-      document.getElementById("sistema").style.display = "flex";
-      mostrarSecao("dashboard");
-
-      initializeTheme();
-      await carregarConfiguracoesSistema();
-      await registrarAuditoria("login", "Usuário fez login");
-
-      carregarDadosIniciais();
-    })
-    .catch((erro) => {
-      alert("Erro de login: " + erro.message);
-    });
+    }
+    
+    if (usuarioAtual.role === 'superadmin' || usuarioAtual.role === 'MASTER_ADMIN') {
+      window.location.href = 'superadmin.html';
+      return;
+    }
+    
+    document.getElementById("loginTela").style.display = "none";
+    document.getElementById("sistema").style.display = "flex";
+    esconderTelaBloqueio();
+    mostrarSecao("dashboard");
+    initializeTheme();
+    await carregarConfiguracoesSistema();
+    await registrarAuditoria("login", "Usuário fez login");
+    carregarDadosIniciais();
+  } catch (erro) {
+    if (erro.code === 'EMPRESA_BLOQUEADA') return;
+    showToast("Erro de login: " + tratarErroFirebase(erro), "error", "Login");
+  }
 }
 
 // ===========================
-// CADASTRO - SCREEN NAVIGATION
+// CADASTRO
 // ===========================
 
-/**
- * Exibe a tela de cadastro e oculta a tela de login
- */
 function mostrarCadastro() {
   document.getElementById('loginTela').style.display = 'none';
-  document.getElementById('cadastroTela').style.display = 'flex';
+  const cadastroTela = document.getElementById('cadastroTela');
+  if (cadastroTela) cadastroTela.style.display = 'flex';
   limparMensagensCadastro();
 }
 
-/**
- * Volta para a tela de login a partir do cadastro
- */
 function voltarParaLogin() {
-  document.getElementById('cadastroTela').style.display = 'none';
+  const cadastroTela = document.getElementById('cadastroTela');
+  if (cadastroTela) cadastroTela.style.display = 'none';
   document.getElementById('loginTela').style.display = 'flex';
   limparMensagensCadastro();
 }
 
-/**
- * Limpa mensagens e loading da tela de cadastro
- */
 function limparMensagensCadastro() {
   const msgErro = document.getElementById('cadastroMsgErro');
   const msgSucesso = document.getElementById('cadastroMsgSucesso');
@@ -409,166 +618,20 @@ function limparMensagensCadastro() {
   if (loading) loading.style.display = 'none';
 }
 
-// ===========================
-// INPUT MASKS (Formato Brasileiro)
-// ===========================
-
-/**
- * Aplica máscara de WhatsApp brasileiro: (XX) XXXXX-XXXX
- */
-function aplicarMascaraWhatsApp(input) {
-  input.addEventListener('input', function () {
-    let value = this.value.replace(/\D/g, '');
-    if (value.length > 11) value = value.substring(0, 11);
-    if (value.length > 6) {
-      this.value = '(' + value.substring(0, 2) + ') ' + value.substring(2, 7) + '-' + value.substring(7);
-    } else if (value.length > 2) {
-      this.value = '(' + value.substring(0, 2) + ') ' + value.substring(2);
-    } else if (value.length > 0) {
-      this.value = '(' + value;
-    }
-  });
-}
-
-/**
- * Aplica máscara de CPF: XXX.XXX.XXX-XX ou CNPJ: XX.XXX.XXX/XXXX-XX
- */
-function aplicarMascaraCpfCnpj(input) {
-  input.addEventListener('input', function () {
-    let value = this.value.replace(/\D/g, '');
-    if (value.length > 14) value = value.substring(0, 14);
-    if (value.length <= 11) {
-      // CPF
-      if (value.length > 9) {
-        this.value = value.substring(0, 3) + '.' + value.substring(3, 6) + '.' + value.substring(6, 9) + '-' + value.substring(9);
-      } else if (value.length > 6) {
-        this.value = value.substring(0, 3) + '.' + value.substring(3, 6) + '.' + value.substring(6);
-      } else if (value.length > 3) {
-        this.value = value.substring(0, 3) + '.' + value.substring(3);
-      }
-    } else {
-      // CNPJ
-      if (value.length > 12) {
-        this.value = value.substring(0, 2) + '.' + value.substring(2, 5) + '.' + value.substring(5, 8) + '/' + value.substring(8, 12) + '-' + value.substring(12);
-      } else if (value.length > 8) {
-        this.value = value.substring(0, 2) + '.' + value.substring(2, 5) + '.' + value.substring(5, 8) + '/' + value.substring(8);
-      } else if (value.length > 5) {
-        this.value = value.substring(0, 2) + '.' + value.substring(2, 5) + '.' + value.substring(5);
-      } else if (value.length > 2) {
-        this.value = value.substring(0, 2) + '.' + value.substring(2);
-      }
-    }
-  });
-}
-
-// ===========================
-// PASSWORD TOGGLE & STRENGTH
-// ===========================
-
-/**
- * Alterna visibilidade da senha (mostrar/ocultar)
- */
-function toggleSenhaVisibilidade(inputId, btnElement) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  const icon = btnElement.querySelector('i');
-  if (input.type === 'password') {
-    input.type = 'text';
-    if (icon) {
-      icon.classList.remove('fa-eye');
-      icon.classList.add('fa-eye-slash');
-    }
-  } else {
-    input.type = 'password';
-    if (icon) {
-      icon.classList.remove('fa-eye-slash');
-      icon.classList.add('fa-eye');
-    }
-  }
-}
-
-/**
- * Calcula a força da senha e atualiza a barra indicadora
- */
-function atualizarForcaSenha() {
-  const senha = document.getElementById('cad_senha').value;
-  const indicator = document.getElementById('passwordStrengthIndicator');
-  const text = document.getElementById('passwordStrengthText');
-  if (!indicator || !text) return;
-
-  let forca = 0;
-  let cor = '#EF4444'; // Vermelho
-  let texto = 'Muito fraca';
-
-  if (senha.length >= 6) forca += 25;
-  if (senha.length >= 8) forca += 15;
-  if (/[a-z]/.test(senha)) forca += 15;
-  if (/[A-Z]/.test(senha)) forca += 15;
-  if (/[0-9]/.test(senha)) forca += 15;
-  if (/[^a-zA-Z0-9]/.test(senha)) forca += 15;
-
-  if (senha.length === 0) {
-    forca = 0;
-    texto = '';
-    cor = 'transparent';
-  } else if (forca <= 25) {
-    texto = 'Muito fraca';
-    cor = '#EF4444';
-  } else if (forca <= 40) {
-    texto = 'Fraca';
-    cor = '#F59E0B';
-  } else if (forca <= 60) {
-    texto = 'Média';
-    cor = '#FBBF24';
-  } else if (forca <= 80) {
-    texto = 'Forte';
-    cor = '#34D399';
-  } else {
-    texto = 'Muito forte';
-    cor = '#10B981';
-  }
-
-  indicator.style.width = forca + '%';
-  indicator.style.background = cor;
-  text.textContent = texto;
-  text.style.color = cor;
-}
-
-// ===========================
-// CADASTRO - VALIDATION
-// ===========================
-
-/**
- * Exibe mensagem de erro na tela de cadastro
- */
 function mostrarErroCadastro(mensagem) {
   const msgEl = document.getElementById('cadastroMsgErro');
   const sucessoEl = document.getElementById('cadastroMsgSucesso');
-  if (msgEl) {
-    msgEl.textContent = mensagem;
-    msgEl.style.display = 'block';
-    msgEl.style.animation = 'none';
-    setTimeout(() => { msgEl.style.animation = 'slideIn 0.3s ease'; }, 10);
-  }
+  if (msgEl) { msgEl.textContent = mensagem; msgEl.style.display = 'block'; }
   if (sucessoEl) sucessoEl.style.display = 'none';
 }
 
-/**
- * Exibe mensagem de sucesso na tela de cadastro
- */
 function mostrarSucessoCadastro(mensagem) {
   const msgEl = document.getElementById('cadastroMsgSucesso');
   const erroEl = document.getElementById('cadastroMsgErro');
-  if (msgEl) {
-    msgEl.textContent = mensagem;
-    msgEl.style.display = 'block';
-  }
+  if (msgEl) { msgEl.textContent = mensagem; msgEl.style.display = 'block'; }
   if (erroEl) erroEl.style.display = 'none';
 }
 
-/**
- * Mostra/oculta o loading durante o cadastro
- */
 function setCadastroLoading(ativo) {
   const loading = document.getElementById('cadastroLoading');
   const btn = document.getElementById('btnCriarConta');
@@ -576,271 +639,184 @@ function setCadastroLoading(ativo) {
   if (btn) btn.disabled = ativo;
 }
 
-/**
- * Valida e-mail com regex
- */
-function validarEmail(email) {
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return regex.test(email);
-}
+function validarEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/**
- * Valida CPF (apenas dígitos)
- */
-function validarCPF(cpf) {
-  const numeros = cpf.replace(/\D/g, '');
-  if (numeros.length !== 11) return false;
-  // Evita sequências iguais
-  if (/^(\d)\1{10}$/.test(numeros)) return false;
-  let soma = 0;
-  for (let i = 0; i < 9; i++) soma += parseInt(numeros.charAt(i)) * (10 - i);
-  let resto = 11 - (soma % 11);
-  if (resto >= 10) resto = 0;
-  if (resto !== parseInt(numeros.charAt(9))) return false;
-  soma = 0;
-  for (let i = 0; i < 10; i++) soma += parseInt(numeros.charAt(i)) * (11 - i);
-  resto = 11 - (soma % 11);
-  if (resto >= 10) resto = 0;
-  return resto === parseInt(numeros.charAt(10));
-}
-
-/**
- * Valida CNPJ (apenas dígitos)
- */
-function validarCNPJ(cnpj) {
-  const numeros = cnpj.replace(/\D/g, '');
-  if (numeros.length !== 14) return false;
-  if (/^(\d)\1{13}$/.test(numeros)) return false;
-  let tamanho = numeros.length - 2;
-  let numerosTemp = numeros.substring(0, tamanho);
-  let soma = 0;
-  let pos = tamanho - 7;
-  for (let i = tamanho; i >= 1; i--) {
-    soma += parseInt(numerosTemp.charAt(tamanho - i)) * pos--;
-    if (pos < 2) pos = 9;
-  }
-  let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-  if (resultado !== parseInt(numeros.charAt(tamanho))) return false;
-  tamanho++;
-  numerosTemp = numeros.substring(0, tamanho);
-  soma = 0;
-  pos = tamanho - 7;
-  for (let i = tamanho; i >= 1; i--) {
-    soma += parseInt(numerosTemp.charAt(tamanho - i)) * pos--;
-    if (pos < 2) pos = 9;
-  }
-  resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-  return resultado === parseInt(numeros.charAt(tamanho));
-}
-
-/**
- * Traduz erros do Firebase para mensagens amigáveis em português
- */
 function tratarErroFirebase(erro) {
   const codigo = erro.code || erro.message || '';
-  if (codigo.includes('email-already-in-use') || codigo.includes('EMAIL_EXISTS')) {
-    return 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.';
-  }
-  if (codigo.includes('weak-password') || codigo.includes('WEAK_PASSWORD')) {
-    return 'A senha é muito fraca. Use pelo menos 6 caracteres com letras e números.';
-  }
-  if (codigo.includes('invalid-email') || codigo.includes('INVALID_EMAIL')) {
-    return 'O formato do e-mail é inválido.';
-  }
-  if (codigo.includes('network-error') || codigo.includes('NETWORK_ERROR')) {
-    return 'Erro de conexão. Verifique sua internet e tente novamente.';
-  }
-  if (codigo.includes('too-many-requests') || codigo.includes('TOO_MANY_ATTEMPTS_TRY_LATER')) {
-    return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
-  }
-  if (codigo.includes('operation-not-allowed') || codigo.includes('OPERATION_NOT_ALLOWED')) {
-    return 'Cadastro temporariamente desativado. Contate o suporte.';
-  }
-  // Erro genérico
-  return erro.message || 'Ocorreu um erro inesperado. Tente novamente.';
+  if (codigo.includes('email-already-in-use') || codigo.includes('EMAIL_EXISTS')) return 'Este e-mail já está cadastrado.';
+  if (codigo.includes('weak-password') || codigo.includes('WEAK_PASSWORD')) return 'Senha muito fraca. Use 6+ caracteres.';
+  if (codigo.includes('invalid-email') || codigo.includes('INVALID_EMAIL')) return 'Formato de e-mail inválido.';
+  if (codigo.includes('network-error') || codigo.includes('NETWORK_ERROR')) return 'Erro de conexão. Verifique sua internet.';
+  if (codigo.includes('too-many-requests')) return 'Muitas tentativas. Aguarde alguns minutos.';
+  if (codigo.includes('user-not-found') || codigo.includes('USER_NOT_FOUND')) return 'Usuário não encontrado.';
+  if (codigo.includes('wrong-password') || codigo.includes('INVALID_PASSWORD')) return 'Senha incorreta.';
+  if (codigo.includes('user-disabled') || codigo.includes('USER_DISABLED')) return 'Conta desabilitada. Entre em contato com o suporte.';
+  if (codigo === 'EMPRESA_BLOQUEADA') return 'Conta bloqueada. Entre em contato com o suporte.';
+  return erro.message || 'Erro inesperado. Tente novamente.';
 }
 
-// ===========================
-// CADASTRO - MAIN FUNCTION
-// ===========================
-
-/**
- * Função principal de cadastro de usuário
- * Cria conta no Firebase Auth, salva dados no Firestore e faz login automático
- */
 async function cadastrarUsuario() {
-  // Limpa mensagens anteriores
   limparMensagensCadastro();
   setCadastroLoading(true);
-
   try {
-    // ===========================
-    // 1. Captura e sanitiza os campos
-    // ===========================
-    const nomeEmpresa = sanitizarInput(document.getElementById('cad_nomeEmpresa').value);
-    const responsavel = sanitizarInput(document.getElementById('cad_responsavel').value);
-    const whatsappPrincipal = sanitizarTelefone(document.getElementById('cad_whatsappPrincipal').value);
-    const whatsappSecundario = sanitizarTelefone(document.getElementById('cad_whatsappSecundario').value);
+    const nomeProvedor = sanitizarInput(document.getElementById('cad_nomeProvedor').value);
+    const whatsapp = sanitizarTelefone(document.getElementById('cad_whatsapp').value);
+    const cidade = sanitizarInput(document.getElementById('cad_cidade').value);
+    const nome = sanitizarInput(document.getElementById('cad_nome').value);
     const email = sanitizarEmail(document.getElementById('cad_email').value);
     const senha = document.getElementById('cad_senha').value;
     const confirmarSenha = document.getElementById('cad_confirmarSenha').value;
-    const cidade = sanitizarInput(document.getElementById('cad_cidade').value);
-    const estado = document.getElementById('cad_estado').value;
-    const cpfCnpjRaw = document.getElementById('cad_cpfCnpj').value.replace(/\D/g, '');
+    const aceitoTermos = document.getElementById('cad_termos').checked;
 
-    // ===========================
-    // 2. Validação dos campos obrigatórios
-    // ===========================
-    if (!nomeEmpresa) {
-      throw new Error('O campo Nome da Empresa é obrigatório.');
-    }
-    if (!responsavel) {
-      throw new Error('O campo Nome do Responsável é obrigatório.');
-    }
-    if (!whatsappPrincipal || whatsappPrincipal.length < 10) {
-      throw new Error('Informe um WhatsApp Principal válido com DDD (ex: 81999999999).');
-    }
-    if (!email) {
-      throw new Error('O campo E-mail é obrigatório.');
-    }
-    if (!validarEmail(email)) {
-      throw new Error('Informe um e-mail válido (ex: empresa@exemplo.com).');
-    }
-    if (!senha || senha.length < 6) {
-      throw new Error('A senha deve ter no mínimo 6 caracteres.');
-    }
-    if (senha !== confirmarSenha) {
-      throw new Error('As senhas não conferem. Digite a mesma senha nos dois campos.');
-    }
+    if (!nomeProvedor) throw new Error('Informe o nome do provedor.');
+    if (!whatsapp || whatsapp.length < 10) throw new Error('WhatsApp inválido.');
+    if (!cidade) throw new Error('Informe a cidade.');
+    if (!nome) throw new Error('Informe o nome do administrador.');
+    if (!email) throw new Error('Informe o e-mail.');
+    if (!senha || senha.length < 8) throw new Error('Senha deve ter 8+ caracteres.');
+    if (senha !== confirmarSenha) throw new Error('Senhas não conferem.');
+    if (!aceitoTermos) throw new Error('Aceite os Termos de Uso.');
 
-    // Validação opcional de CPF/CNPJ
-    if (cpfCnpjRaw.length > 0) {
-      if (cpfCnpjRaw.length === 11) {
-        if (!validarCPF(cpfCnpjRaw)) {
-          throw new Error('CPF informado é inválido. Verifique os números.');
-        }
-      } else if (cpfCnpjRaw.length === 14) {
-        if (!validarCNPJ(cpfCnpjRaw)) {
-          throw new Error('CNPJ informado é inválido. Verifique os números.');
-        }
-      } else {
-        throw new Error('CPF/CNPJ deve ter 11 ou 14 dígitos.');
-      }
-    }
-
-    // ===========================
-    // 3. Criação do usuário no Firebase Authentication
-    // ===========================
     const userCredential = await auth.createUserWithEmailAndPassword(email, senha);
     const user = userCredential.user;
-
-    // ===========================
-    // 4. Calcula data de expiração do teste (15 dias)
-    // ===========================
     const agora = new Date();
-    const dataExpiracaoTeste = new Date(agora);
-    dataExpiracaoTeste.setDate(dataExpiracaoTeste.getDate() + 15);
+    const dataExpiracao = new Date(agora);
+    dataExpiracao.setDate(dataExpiracao.getDate() + 15);
+    const empresaId = user.uid;
 
-    // ===========================
-    // 5. Salva dados do usuário no Firestore
-    // ===========================
-    const usuarioData = {
-      uid: user.uid,
-      nomeEmpresa: nomeEmpresa,
-      responsavel: responsavel,
-      whatsappPrincipal: whatsappPrincipal,
-      whatsappSecundario: whatsappSecundario || '',
+    // Create empresa document
+    await db.collection('empresas').doc(empresaId).set({
+      empresaId,
+      nomeProvedor: nomeProvedor,
+      nomeEmpresa: nomeProvedor,
+      responsavel: nome,
+      whatsappPrincipal: whatsapp,
+      cidade: cidade,
       email: email,
-      cpfCnpj: cpfCnpjRaw || '',
-      cidade: cidade || '',
-      estado: estado || '',
-      plano: 'Teste',
-      status: 'Ativo',
-      role: 'cliente',
-      tenantId: user.uid,
-      diasTeste: 15,
-      dataExpiracaoTeste: firebase.firestore.Timestamp.fromDate(dataExpiracaoTeste),
-      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-      ultimoLogin: firebase.firestore.FieldValue.serverTimestamp(),
+      plano: 'Teste 15 dias',
+      status: 'trial',
+      trialStartDate: firebase.firestore.FieldValue.serverTimestamp(),
+      trialEndDate: firebase.firestore.Timestamp.fromDate(dataExpiracao),
+      trialDaysRemaining: 15,
+      logoUrl: '',
+      role: 'admin',
+      tenantId: empresaId,
+      limiteClientes: 300,
+      clientesAtivos: 0,
+      dataCadastro: firebase.firestore.FieldValue.serverTimestamp(),
+      dataExpiracao: firebase.firestore.Timestamp.fromDate(dataExpiracao),
       createdBy: user.uid,
       updatedBy: user.uid,
       updatedAt: new Date()
-    };
+    });
 
-    await db.collection('usuarios').doc(user.uid).set(usuarioData);
+    // Create user document
+    await db.collection('usuarios').doc(user.uid).set({
+      uid: user.uid,
+      empresaId,
+      nome,
+      nomeEmpresa: nomeProvedor,
+      email,
+      role: 'admin',
+      ativo: true,
+      status: 'trial',
+      tenantId: empresaId,
+      plano: 'Teste 15 dias',
+      dataExpiracaoTeste: firebase.firestore.Timestamp.fromDate(dataExpiracao),
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      ultimoLogin: firebase.firestore.FieldValue.serverTimestamp()
+    });
 
-    // ===========================
-    // 6. Login automático e redirecionamento
-    // ===========================
+    // Create provider document for logo
+    await db.collection("providers").doc(empresaId).set({
+      providerName: nomeProvedor,
+      logoUrl: "",
+      tenantId: empresaId,
+      updatedAt: new Date(),
+      updatedBy: user.uid
+    }, { merge: true });
+
     mostrarSucessoCadastro('Conta criada com sucesso! Redirecionando...');
-
-    // Aguarda um momento para mostrar a mensagem de sucesso
+    await registrarAuditLog(empresaId, 'empresaCriada', `Novo provedor: ${nomeProvedor}`);
     await new Promise(resolve => setTimeout(resolve, 800));
-
-    // Carrega dados do usuário recém-criado
     await carregarUsuarioAtual();
 
-    // Esconde tela de cadastro e mostra o sistema
     document.getElementById('cadastroTela').style.display = 'none';
     document.getElementById('loginTela').style.display = 'none';
     document.getElementById('sistema').style.display = 'flex';
+    esconderTelaBloqueio();
     mostrarSecao('dashboard');
-
-    // Inicializa tema e carrega dados
     initializeTheme();
     await carregarConfiguracoesSistema();
-    await registrarAuditoria('cadastro', `Novo usuário cadastrado: ${email} - ${nomeEmpresa}`);
-
-    // Carrega todos os dados iniciais do sistema
+    await registrarAuditoria('cadastro', `Novo provedor: ${nomeProvedor} - ${email}`);
     carregarDadosIniciais();
-
-    // Força recarregamento dos listeners após o login automático
-    console.log('✅ Usuário cadastrado e logado com sucesso:', email);
-
   } catch (erro) {
-    // Trata o erro e exibe mensagem amigável
-    const mensagemErro = tratarErroFirebase(erro);
-    mostrarErroCadastro(mensagemErro);
+    mostrarErroCadastro(tratarErroFirebase(erro));
     console.error('Erro no cadastro:', erro);
   } finally {
     setCadastroLoading(false);
   }
 }
 
+function atualizarForcaSenhaCadastro() {
+  const senha = document.getElementById('cad_senha').value;
+  const indicator = document.getElementById('cadastroStrengthIndicator');
+  const text = document.getElementById('cadastroStrengthText');
+  if (!indicator || !text) return;
+  let forca = 0, cor = '#EF4444', texto = '';
+  if (senha.length >= 6) forca += 20;
+  if (senha.length >= 8) forca += 20;
+  if (/[a-z]/.test(senha)) forca += 15;
+  if (/[A-Z]/.test(senha)) forca += 15;
+  if (/[0-9]/.test(senha)) forca += 15;
+  if (/[^a-zA-Z0-9]/.test(senha)) forca += 15;
+  if (senha.length === 0) { forca = 0; texto = ''; cor = 'transparent'; }
+  else if (forca <= 25) { texto = 'Fraca'; cor = '#EF4444'; }
+  else if (forca <= 50) { texto = 'Média'; cor = '#F59E0B'; }
+  else if (forca <= 75) { texto = 'Boa'; cor = '#34D399'; }
+  else { texto = 'Forte'; cor = '#10B981'; }
+  indicator.style.width = forca + '%';
+  indicator.style.background = cor;
+  text.textContent = texto;
+  text.style.color = cor;
+}
+
 // ===========================
-// INIT - MASCARAS E EVENTOS
+// DOM READY
 // ===========================
 
-/**
- * Inicializa máscaras e eventos quando o DOM estiver pronto
- */
 document.addEventListener('DOMContentLoaded', function () {
-  // Máscara WhatsApp Principal
-  const waPrincipal = document.getElementById('cad_whatsappPrincipal');
-  if (waPrincipal) aplicarMascaraWhatsApp(waPrincipal);
+  const waInput = document.getElementById('cad_whatsapp');
+  if (waInput) aplicarMascaraWhatsApp(waInput);
 
-  // Máscara WhatsApp Secundário
-  const waSecundario = document.getElementById('cad_whatsappSecundario');
-  if (waSecundario) aplicarMascaraWhatsApp(waSecundario);
-
-  // Máscara CPF/CNPJ
-  const cpfCnpj = document.getElementById('cad_cpfCnpj');
-  if (cpfCnpj) aplicarMascaraCpfCnpj(cpfCnpj);
-
-  // Força da senha
   const senhaInput = document.getElementById('cad_senha');
-  if (senhaInput) {
-    senhaInput.addEventListener('input', atualizarForcaSenha);
-  }
+  if (senhaInput) senhaInput.addEventListener('input', atualizarForcaSenhaCadastro);
 
-  // Permitir Enter para submeter o cadastro
   const cadastroForm = document.getElementById('cadastroTela');
   if (cadastroForm) {
     cadastroForm.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        cadastrarUsuario();
-      }
+      if (e.key === 'Enter') { e.preventDefault(); cadastrarUsuario(); }
+    });
+  }
+
+  const confirmModal = document.getElementById('confirmDeleteModal');
+  if (confirmModal) {
+    confirmModal.addEventListener('click', function(e) {
+      if (e.target === this) fecharModalConfirmacao();
+    });
+  }
+
+  // Template change handlers
+  const templateIndividual = document.getElementById("wa_template_individual");
+  const templateMassa = document.getElementById("wa_template_massa");
+  if (templateIndividual) {
+    templateIndividual.addEventListener("change", function () {
+      if (this.value !== "personalizado") carregarTemplateNaTextarea(this.value, "wa_mensagem_individual");
+    });
+  }
+  if (templateMassa) {
+    templateMassa.addEventListener("change", function () {
+      if (this.value !== "personalizado") carregarTemplateNaTextarea(this.value, "wa_mensagem_massa");
     });
   }
 });
@@ -850,6 +826,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // ===========================
 
 function carregarDadosIniciais() {
+  carregarProviderData();
   carregarClientes();
   carregarPlanos();
   carregarFinanceiro();
@@ -861,54 +838,306 @@ function carregarDadosIniciais() {
   carregarClientesWhatsApp();
   carregarConfiguracoesWhatsApp();
   carregarHistoricoWhatsApp();
+  carregarDashboardPremium();
 
   if (usuarioAtual.role === "admin" || isMasterAdmin()) {
-    const btnAdmin = document.getElementById("btnAdmin");
-    if (btnAdmin) btnAdmin.style.display = "flex";
     carregarDashboardAdmin();
     carregarUsuariosAdmin();
+  }
+
+  // Set current date
+  const dataEl = document.getElementById("dataAtualDashboard");
+  if (dataEl) {
+    dataEl.textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  const dataFinEl = document.getElementById("dataAtualFinanceiro");
+  if (dataFinEl) {
+    dataFinEl.textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 }
 
 // ===========================
-// MENU
+// MENU & SIDEBAR
 // ===========================
 
 function mostrarSecao(id) {
   if (id === 'administracao' && !isMasterAdmin()) {
-    alert('Acesso negado: seção administrativa disponível somente para MASTER_ADMIN.');
+    showToast('Acesso negado.', 'error', 'Permissão');
     return;
   }
 
-  document.querySelectorAll(".secao").forEach(secao => {
-    secao.style.display = "none";
-  });
+  document.querySelectorAll(".secao").forEach(secao => { secao.style.display = "none"; });
   const el = document.getElementById(id);
   if (el) el.style.display = "block";
 
-  // Close sidebar on mobile after navigation
-  const sidebar = document.getElementById('mainSidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  if (sidebar && overlay && window.innerWidth <= 768) {
-    sidebar.classList.remove('open');
-    overlay.classList.remove('active');
+  // Update sidebar active
+  document.querySelectorAll('.sidebar-nav-item').forEach(item => {
+    item.classList.remove('active');
+    const onclick = item.getAttribute('onclick') || '';
+    if (onclick.includes("'" + id + "'") || onclick.includes('"' + id + '"')) {
+      item.classList.add('active');
+    }
+  });
+
+  // Close sidebar on mobile
+  if (window.innerWidth <= 900) {
+    const sidebar = document.getElementById('mainSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+    }
   }
 }
-
-// ===========================
-// SIDEBAR TOGGLE (Mobile)
-// ===========================
 
 function toggleSidebar() {
   const sidebar = document.getElementById('mainSidebar');
   const overlay = document.getElementById('sidebarOverlay');
   if (!sidebar || !overlay) return;
+  const isOpen = sidebar.classList.contains('open');
   sidebar.classList.toggle('open');
-  overlay.classList.toggle('active');
+  overlay.classList.toggle('open');
+  document.body.style.overflow = isOpen ? '' : 'hidden';
+  const btn = document.getElementById('mobileMenuBtn');
+  if (btn) {
+    btn.setAttribute('aria-expanded', !isOpen);
+    btn.setAttribute('title', isOpen ? 'Abrir menu' : 'Fechar menu');
+  }
+}
+
+window.addEventListener('resize', function() {
+  if (window.innerWidth > 900) {
+    const sidebar = document.getElementById('mainSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const sidebar = document.getElementById('mainSidebar');
+    if (sidebar && sidebar.classList.contains('open')) toggleSidebar();
+  }
+});
+
+// ===========================
+// DASHBOARD PREMIUM
+// ===========================
+
+function carregarDashboardPremium() {
+  if (!auth.currentUser) return;
+
+  const tenantId = getTenantId();
+  const agora = new Date();
+  const dataBrasil = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const mesAtual = dataBrasil.getMonth();
+  const anoAtual = dataBrasil.getFullYear();
+  const mesPassado = mesAtual === 0 ? 11 : mesAtual - 1;
+  const anoPassado = mesAtual === 0 ? anoAtual - 1 : anoAtual;
+
+  Promise.all([
+    db.collection("clientes").where("tenantId", "==", tenantId).get(),
+    db.collection("recebimentos").where("tenantId", "==", tenantId).get(),
+    db.collection("mensalidades").where("tenantId", "==", tenantId).get(),
+    db.collection("planos").where("tenantId", "==", tenantId).get()
+  ]).then(([clientesSnap, recebSnap, mensalidadesSnap, planosSnap]) => {
+    document.getElementById('skeletonDashboard').style.display = 'none';
+    document.getElementById('dashboardCards').style.display = 'grid';
+    document.getElementById('chartsContainer').style.display = 'grid';
+    document.getElementById('tabelaAtrasoContainer').style.display = 'block';
+
+    let totalClientes = 0, clientesAtivos = 0, clientesInadimplentes = 0;
+    let faturamentoMensal = 0, receitaRecebidaMes = 0, receitaPrevista = 0;
+    let novosClientesMes = 0;
+    let valorAtraso = 0;
+    let clientesCadastrosMeses = {};
+    let clientesPorPlano = {};
+    let receitaPorPlano = {};
+    let receitaPorMes = {};
+    let inadimplenciaPorMes = {};
+    let receitaMesPassado = 0;
+    let clientesMesPassado = 0;
+
+    for (let i = 0; i < 12; i++) {
+      const key = `${String(i+1).padStart(2,'0')}/${anoAtual}`;
+      clientesCadastrosMeses[key] = 0;
+      receitaPorMes[key] = { previsto: 0, recebido: 0 };
+      inadimplenciaPorMes[key] = { total: 0, atrasado: 0 };
+    }
+
+    clientesSnap.forEach(doc => {
+      const c = doc.data();
+      totalClientes++;
+      if (c.status === "Ativo") { clientesAtivos++; faturamentoMensal += Number(c.valor) || 0; receitaPrevista += Number(c.valor) || 0; }
+      if (c.status === "Inadimplente") clientesInadimplentes++;
+      if (c.dataCadastro) {
+        const data = c.dataCadastro.toDate ? c.dataCadastro.toDate() : new Date(c.dataCadastro);
+        if (data.getMonth() === mesAtual && data.getFullYear() === anoAtual) novosClientesMes++;
+        if (data.getMonth() === mesPassado && data.getFullYear() === anoPassado) clientesMesPassado++;
+        const key = `${String(data.getMonth()+1).padStart(2,'0')}/${data.getFullYear()}`;
+        if (clientesCadastrosMeses[key] !== undefined) clientesCadastrosMeses[key]++;
+      }
+      const planoNome = c.plano || "Sem Plano";
+      if (!clientesPorPlano[planoNome]) { clientesPorPlano[planoNome] = 0; receitaPorPlano[planoNome] = 0; }
+      clientesPorPlano[planoNome]++;
+      receitaPorPlano[planoNome] += Number(c.valor) || 0;
+    });
+
+    const statusRecebido = ["Pago", "Recebido", "Quitado"];
+    recebSnap.forEach(doc => {
+      const r = doc.data();
+      if (statusRecebido.includes(r.status)) {
+        const dataPag = r.dataPagamento ? (r.dataPagamento.toDate ? r.dataPagamento.toDate() : new Date(r.dataPagamento)) : new Date(r.vencimento);
+        if (dataPag.getMonth() === mesAtual && dataPag.getFullYear() === anoAtual) receitaRecebidaMes += Number(r.valor) || 0;
+        if (dataPag.getMonth() === mesPassado && dataPag.getFullYear() === anoPassado) receitaMesPassado += Number(r.valor) || 0;
+        const key = `${String(dataPag.getMonth()+1).padStart(2,'0')}/${dataPag.getFullYear()}`;
+        if (receitaPorMes[key]) receitaPorMes[key].recebido += Number(r.valor) || 0;
+      }
+    });
+
+    mensalidadesSnap.forEach(doc => {
+      const m = doc.data();
+      if (statusRecebido.includes(m.status)) {
+        const dataPag = m.dataPagamento ? (m.dataPagamento.toDate ? m.dataPagamento.toDate() : new Date(m.dataPagamento)) : new Date(m.vencimento);
+        if (dataPag.getMonth() === mesAtual && dataPag.getFullYear() === anoAtual) receitaRecebidaMes += Number(m.valor) || 0;
+        if (dataPag.getMonth() === mesPassado && dataPag.getFullYear() === anoPassado) receitaMesPassado += Number(m.valor) || 0;
+        const key = `${String(dataPag.getMonth()+1).padStart(2,'0')}/${dataPag.getFullYear()}`;
+        if (receitaPorMes[key]) receitaPorMes[key].recebido += Number(m.valor) || 0;
+      }
+      if (m.status === "Atrasado" || m.status === "Vencido") {
+        valorAtraso += Number(m.valor) || 0;
+        const dataVenc = new Date(m.vencimento);
+        const inadiKey = `${String(dataVenc.getMonth()+1).padStart(2,'0')}/${dataVenc.getFullYear()}`;
+        if (inadimplenciaPorMes[inadiKey]) inadimplenciaPorMes[inadiKey].atrasado += Number(m.valor) || 0;
+      }
+    });
+
+    for (let i = 0; i < 12; i++) {
+      const key = `${String(i+1).padStart(2,'0')}/${anoAtual}`;
+      if (receitaPorMes[key]) receitaPorMes[key].previsto = faturamentoMensal;
+    }
+
+    const taxaInadimplencia = faturamentoMensal > 0 ? (clientesInadimplentes / clientesAtivos * 100) : 0;
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    setText("receitaRecebidaMes", "R$ " + receitaRecebidaMes.toFixed(2));
+    setText("receitaPrevista", "R$ " + receitaPrevista.toFixed(2));
+    setText("clientesAtivos", clientesAtivos);
+    setText("clientesInadimplentes", clientesInadimplentes);
+    setText("novosClientesMes", novosClientesMes);
+    setText("taxaInadimplencia", taxaInadimplencia.toFixed(1) + "%");
+    setText("chamadosAbertos", "0");
+    setText("ticketsResolvidos", "0");
+
+    const percReceita = receitaMesPassado > 0 ? ((receitaRecebidaMes - receitaMesPassado) / receitaMesPassado * 100) : 0;
+    const trendReceita = document.getElementById("trendReceitaRecebida");
+    if (trendReceita) {
+      trendReceita.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-${percReceita >= 0 ? 'up' : 'down'}"></i></span><span class="trend-value">${percReceita >= 0 ? '+' : ''}${percReceita.toFixed(1)}%</span><span class="trend-label">vs. mês anterior</span>`;
+    }
+    const trendClientes = document.getElementById("trendClientesAtivos");
+    if (trendClientes) {
+      trendClientes.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+${novosClientesMes}</span><span class="trend-label">novos este mês</span>`;
+    }
+    const trendInad = document.getElementById("trendInadimplentes");
+    if (trendInad) {
+      trendInad.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-down"></i></span><span class="trend-value">${taxaInadimplencia.toFixed(1)}%</span><span class="trend-label">taxa de inadimplência</span>`;
+    }
+    const trendNovos = document.getElementById("trendNovosClientes");
+    if (trendNovos) {
+      trendNovos.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+${novosClientesMes}</span><span class="trend-label">este mês</span>`;
+    }
+    const trendTaxa = document.getElementById("trendTaxaInadimplencia");
+    if (trendTaxa) {
+      trendTaxa.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-down"></i></span><span class="trend-value">${taxaInadimplencia.toFixed(1)}%</span><span class="trend-label">do faturamento</span>`;
+    }
+    criarGraficos(receitaPorMes, clientesPorPlano, receitaPorPlano, clientesCadastrosMeses, inadimplenciaPorMes);
+  }).catch(erro => {
+    console.error("Erro ao carregar dashboard premium:", erro);
+    document.getElementById('skeletonDashboard').style.display = 'none';
+    document.getElementById('dashboardCards').style.display = 'grid';
+  });
 }
 
 // ===========================
-// CLIENTES
+// CHARTS
+// ===========================
+
+function criarGraficos(receitaPorMes, clientesPorPlano, receitaPorPlano, evolucaoClientes, inadimplenciaPorMes) {
+  const meses = Object.keys(receitaPorMes).slice(-12);
+  const receitaRecebidaData = meses.map(m => receitaPorMes[m]?.recebido || 0);
+  const receitaPrevistaData = meses.map(m => receitaPorMes[m]?.previsto || 0);
+
+  Chart.defaults.color = '#94A3B8';
+  Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+  Chart.defaults.font.family = "'Inter', sans-serif";
+
+  const ctx1 = document.getElementById('chartReceitaMensal');
+  if (ctx1) {
+    if (chartReceitaMensal) chartReceitaMensal.destroy();
+    chartReceitaMensal = new Chart(ctx1, {
+      type: 'line',
+      data: {
+        labels: meses,
+        datasets: [
+          { label: 'Recebido', data: receitaRecebidaData, borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2 },
+          { label: 'Previsto', data: receitaPrevistaData, borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.05)', fill: false, tension: 0.4, borderDash: [5, 5], pointRadius: 3, pointHoverRadius: 5, borderWidth: 2 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 12, font: { size: 12 } } }, tooltip: { backgroundColor: 'rgba(15,23,42,0.95)', titleFont: { size: 13 }, bodyFont: { size: 12 }, padding: 12, cornerRadius: 8 } }, scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(0) } }, x: { grid: { display: false } } } }
+    });
+  }
+
+  const ctx2 = document.getElementById('chartClientesPorPlano');
+  if (ctx2) {
+    if (chartClientesPorPlano) chartClientesPorPlano.destroy();
+    const colors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'];
+    chartClientesPorPlano = new Chart(ctx2, {
+      type: 'doughnut',
+      data: { labels: Object.keys(clientesPorPlano), datasets: [{ data: Object.values(clientesPorPlano), backgroundColor: Object.keys(clientesPorPlano).map((_, i) => colors[i % colors.length]), borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } }, tooltip: { backgroundColor: 'rgba(15,23,42,0.95)', callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + ' clientes' } } } }
+    });
+  }
+
+  const ctx3 = document.getElementById('chartReceitaPorPlano');
+  if (ctx3) {
+    if (chartReceitaPorPlano) chartReceitaPorPlano.destroy();
+    chartReceitaPorPlano = new Chart(ctx3, {
+      type: 'bar',
+      data: { labels: Object.keys(receitaPorPlano), datasets: [{ label: 'Receita', data: Object.values(receitaPorPlano), backgroundColor: ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'], borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(15,23,42,0.95)', callbacks: { label: ctx => 'R$ ' + ctx.parsed.y.toFixed(2) } } }, scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(0) } }, x: { grid: { display: false } } } }
+    });
+  }
+
+  const ctx4 = document.getElementById('chartEvolucaoClientes');
+  if (ctx4) {
+    if (chartEvolucaoClientes) chartEvolucaoClientes.destroy();
+    const evolData = meses.map(m => evolucaoClientes[m] || 0);
+    let acum = 0;
+    const acumData = evolData.map(v => { acum += v; return acum; });
+    chartEvolucaoClientes = new Chart(ctx4, {
+      type: 'line',
+      data: { labels: meses, datasets: [{ label: 'Total Acumulado', data: acumData, borderColor: '#8B5CF6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } }, tooltip: { backgroundColor: 'rgba(15,23,42,0.95)' } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
+    });
+  }
+
+  const ctx5 = document.getElementById('chartInadimplenciaMensal');
+  if (ctx5) {
+    if (chartInadimplenciaMensal) chartInadimplenciaMensal.destroy();
+    const inadiData = meses.map(m => inadimplenciaPorMes[m]?.atrasado || 0);
+    chartInadimplenciaMensal = new Chart(ctx5, {
+      type: 'bar',
+      data: { labels: meses, datasets: [{ label: 'Valor em Atraso', data: inadiData, backgroundColor: 'rgba(239,68,68,0.7)', borderColor: '#EF4444', borderWidth: 1, borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(15,23,42,0.95)', callbacks: { label: ctx => 'R$ ' + ctx.parsed.y.toFixed(2) } } }, scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(0) } }, x: { grid: { display: false } } } }
+    });
+  }
+}
+
+// ===========================
+// CLIENTES CRUD
 // ===========================
 
 function salvarCliente() {
@@ -926,147 +1155,67 @@ function salvarCliente() {
   const vencimento = document.getElementById("vencimento").value;
 
   if (!nome || !telefone || !email) {
-    alert("Preencha pelo menos: Nome, Telefone e E-mail!");
+    showToast("Preencha: Nome, Telefone e E-mail!", "error", "Validação");
     return;
   }
 
   const cliente = secureData({
-    nome,
-    cpf,
-    telefone,
-    email,
-    endereco,
-    bairro,
-    cidade,
-    cep,
-    status,
-    plano,
-    valor,
-    vencimento,
-    dataCadastro: new Date()
+    nome, cpf, telefone, email, endereco, bairro, cidade, cep,
+    status, plano, valor, vencimento, dataCadastro: new Date()
   });
 
   db.collection("clientes")
     .add(cliente)
     .then(async (docRef) => {
-      alert("Cliente cadastrado com sucesso!");
+      showToast("Cliente cadastrado com sucesso!", "success", "Sucesso");
       limparFormulario();
       carregarFinanceiro();
+      carregarDashboardPremium();
       await registrarAuditoria("cliente_criado", `Cliente cadastrado: ${nome}`);
-
-      // Gerar primeira mensalidade automaticamente se cliente estiver Ativo
       if (status === "Ativo" && valor > 0 && vencimento) {
         gerarMensalidadeInicial(docRef.id, nome, plano, valor, vencimento);
       }
     })
     .catch((erro) => {
-      alert("Erro ao salvar: " + erro.message);
+      showToast("Erro ao salvar: " + erro.message, "error", "Erro");
     });
 }
 
 function carregarClientes() {
-  if (!auth.currentUser) {
-    console.error("Usuário não está logado!");
-    return;
-  }
-
-  console.log("Carregando clientes para tenantId:", getTenantId());
-
-  // limpa listener antigo
-  if (clientesListener) {
-    clientesListener();
-  }
-
-  let query = db.collection("clientes")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("nome")
-    .limit(configuracoesSistema.paginacao.clientes);
-
-  if (clientesLastDoc) {
-    query = query.startAfter(clientesLastDoc);
-  }
-
+  if (!auth.currentUser) { console.error("Usuário não está logado!"); return; }
+  if (clientesListener) clientesListener();
+  let query = db.collection("clientes").where("tenantId", "==", getTenantId()).orderBy("nome").limit(configuracoesSistema.paginacao.clientes);
+  if (clientesLastDoc) query = query.startAfter(clientesLastDoc);
   clientesListener = query.onSnapshot((snapshot) => {
     const tabela = document.getElementById("listaClientes");
-    if (!tabela) {
-      console.error("Elemento listaClientes não encontrado!");
-      return;
-    }
+    if (!tabela) return;
     tabela.innerHTML = "";
-
-    let totalClientes = 0;
-    let clientesAtivos = 0;
-    let faturamentoTotal = 0;
-
-    console.log("Snapshot de clientes recebido:", snapshot.size, "registros");
-
+    let totalClientes = 0, clientesAtivos = 0, faturamentoTotal = 0;
     snapshot.forEach((doc) => {
       const cliente = doc.data();
       totalClientes++;
-
-      if (cliente.status === "Ativo") {
-        clientesAtivos++;
-        faturamentoTotal += Number(cliente.valor) || 0;
-      }
-
-      tabela.innerHTML += `
-        <tr>
-          <td>${cliente.nome || ""}</td>
-          <td>${cliente.telefone || ""}</td>
-          <td>${cliente.status || ""}</td>
-          <td>${cliente.plano || ""}</td>
-          <td>${cliente.vencimento || ""}</td>
-          <td>
-            <button onclick="editarCliente('${doc.id}')">
-              <i class="fas fa-pencil"></i> Editar
-            </button>
-            <button onclick="excluirCliente('${doc.id}')">
-              <i class="fas fa-trash"></i> Excluir
-            </button>
-          </td>
-        </tr>
-      `;
+      if (cliente.status === "Ativo") { clientesAtivos++; faturamentoTotal += Number(cliente.valor) || 0; }
+      tabela.innerHTML += `<tr><td>${cliente.nome || ""}</td><td>${cliente.telefone || ""}</td><td>${cliente.status || ""}</td><td>${cliente.plano || ""}</td><td>${cliente.vencimento || ""}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarCliente('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('cliente', '${doc.id}', '${cliente.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
     });
-
-    // Update last doc for pagination
-    if (snapshot.docs.length > 0) {
-      clientesLastDoc = snapshot.docs[snapshot.docs.length - 1];
-    } else {
-      clientesLastDoc = null;
-    }
-
+    clientesLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
     const totalClientesEl = document.getElementById("totalClientes");
     if (totalClientesEl) totalClientesEl.innerText = totalClientes;
-
     const clientesAtivosEl = document.getElementById("clientesAtivos");
     if (clientesAtivosEl) clientesAtivosEl.innerText = clientesAtivos;
-
     const faturamentoMensalEl = document.getElementById("faturamentoMensal");
-    if (faturamentoMensalEl) {
-      faturamentoMensalEl.innerText = "R$ " + faturamentoTotal.toFixed(2);
-    }
-
+    if (faturamentoMensalEl) faturamentoMensalEl.innerText = "R$ " + faturamentoTotal.toFixed(2);
     const ticketMedioEl = document.getElementById("ticketMedio");
-    if (ticketMedioEl) {
-      ticketMedioEl.innerText = "R$ " + (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
-    }
-  }, (erro) => {
-    console.error("Erro ao carregar clientes:", erro);
-  });
+    if (ticketMedioEl) ticketMedioEl.innerText = "R$ " + (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
+  }, (erro) => { console.error("Erro ao carregar clientes:", erro); });
 }
 
 async function editarCliente(id) {
   try {
     const docRef = await db.collection("clientes").doc(id).get();
-    if (!docRef.exists) {
-      alert("Cliente não encontrado!");
-      return;
-    }
+    if (!docRef.exists) { showToast("Cliente não encontrado!", "error", "Erro"); return; }
     const cliente = docRef.data();
-
     clienteEditando = id;
     sessionStorage.setItem('clienteEditandoId', id);
-
     document.getElementById("nome").value = cliente.nome || "";
     document.getElementById("cpf").value = cliente.cpf || "";
     document.getElementById("telefone").value = cliente.telefone || "";
@@ -1079,81 +1228,117 @@ async function editarCliente(id) {
     document.getElementById("plano").value = cliente.plano || "";
     document.getElementById("valor").value = cliente.valor || "";
     document.getElementById("vencimento").value = cliente.vencimento || "";
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (erro) {
     console.error("Erro ao editar cliente:", erro);
-    alert("Erro ao carregar dados do cliente: " + erro.message);
+    showToast("Erro ao carregar dados: " + erro.message, "error", "Erro");
   }
 }
 
 async function atualizarCliente() {
   const id = clienteEditando || sessionStorage.getItem('clienteEditandoId');
-  if (!id) {
-    alert("Selecione um cliente para editar.");
-    return;
-  }
-
+  if (!id) { showToast("Selecione um cliente para editar.", "warning", "Atenção"); return; }
   try {
     const updateData = secureUpdate({
-      nome: sanitizarInput(document.getElementById("nome").value),
-      cpf: sanitizarInput(document.getElementById("cpf").value),
-      telefone: sanitizarTelefone(document.getElementById("telefone").value),
-      email: sanitizarEmail(document.getElementById("email").value),
-      endereco: sanitizarInput(document.getElementById("endereco").value),
-      bairro: sanitizarInput(document.getElementById("bairro").value),
-      cidade: sanitizarInput(document.getElementById("cidade").value),
-      cep: sanitizarInput(document.getElementById("cep").value),
-      status: document.getElementById("status").value,
-      plano: document.getElementById("plano").value,
-      valor: Number(document.getElementById("valor").value),
-      vencimento: document.getElementById("vencimento").value
+      nome: sanitizarInput(document.getElementById("nome").value), cpf: sanitizarInput(document.getElementById("cpf").value),
+      telefone: sanitizarTelefone(document.getElementById("telefone").value), email: sanitizarEmail(document.getElementById("email").value),
+      endereco: sanitizarInput(document.getElementById("endereco").value), bairro: sanitizarInput(document.getElementById("bairro").value),
+      cidade: sanitizarInput(document.getElementById("cidade").value), cep: sanitizarInput(document.getElementById("cep").value),
+      status: document.getElementById("status").value, plano: document.getElementById("plano").value,
+      valor: Number(document.getElementById("valor").value), vencimento: document.getElementById("vencimento").value
     });
-
     await db.collection("clientes").doc(id).update(updateData);
-
-    alert("Cliente atualizado!");
+    showToast("Cliente atualizado!", "success", "Sucesso");
     clienteEditando = null;
     sessionStorage.removeItem('clienteEditandoId');
     limparFormulario();
     carregarFinanceiro();
+    carregarDashboardPremium();
     await registrarAuditoria("cliente_atualizado", `Cliente atualizado: ID ${id}`);
-  } catch (erro) {
-    alert("Erro ao atualizar: " + erro.message);
-  }
-}
-
-function excluirCliente(id) {
-  if (!confirm("Deseja excluir este cliente?")) return;
-
-  db.collection("clientes")
-    .doc(id)
-    .delete()
-    .then(async () => {
-      alert("Cliente removido!");
-      carregarFinanceiro();
-      await registrarAuditoria("cliente_excluido", `Cliente excluído: ID ${id}`);
-    })
-    .catch((erro) => {
-      console.error("ERRO FIREBASE:", erro);
-      alert("Erro ao excluir: " + erro.message);
-    });
+  } catch (erro) { showToast("Erro ao atualizar: " + erro.message, "error", "Erro"); }
 }
 
 function limparFormulario() {
-  document.getElementById("nome").value = "";
-  document.getElementById("cpf").value = "";
-  document.getElementById("telefone").value = "";
-  document.getElementById("email").value = "";
-  document.getElementById("endereco").value = "";
-  document.getElementById("bairro").value = "";
-  document.getElementById("cidade").value = "";
-  document.getElementById("cep").value = "";
+  document.getElementById("nome").value = ""; document.getElementById("cpf").value = "";
+  document.getElementById("telefone").value = ""; document.getElementById("email").value = "";
+  document.getElementById("endereco").value = ""; document.getElementById("bairro").value = "";
+  document.getElementById("cidade").value = ""; document.getElementById("cep").value = "";
   if (document.getElementById("status")) document.getElementById("status").selectedIndex = 0;
   if (document.getElementById("plano")) document.getElementById("plano").selectedIndex = 0;
-  document.getElementById("valor").value = "";
-  document.getElementById("vencimento").value = "";
-  clienteEditando = null;
-  sessionStorage.removeItem('clienteEditandoId');
+  document.getElementById("valor").value = ""; document.getElementById("vencimento").value = "";
+  clienteEditando = null; sessionStorage.removeItem('clienteEditandoId');
 }
+
+// ===========================
+// DELETE CONFIRMATION MODAL
+// ===========================
+
+function abrirModalExclusao(tipo, id, nome) {
+  const modal = document.getElementById('confirmDeleteModal');
+  const overlay = document.getElementById('confirmDeleteOverlay');
+  const title = document.getElementById('confirmDeleteTitle');
+  const message = document.getElementById('confirmDeleteMessage');
+  const confirmBtn = document.getElementById('confirmDeleteBtn');
+  const cancelBtn = document.getElementById('confirmDeleteCancelBtn');
+  if (!modal) { if (confirm(`Deseja realmente excluir ${nome || 'este registro'}?`)) executarExclusao(tipo, id); return; }
+  const labels = { 'cliente': 'Cliente', 'plano': 'Plano', 'mensalidade': 'Mensalidade', 'recebimento': 'Recebimento', 'despesa': 'Despesa', 'usuario': 'Usuário' };
+  const label = labels[tipo] || 'Registro';
+  const displayName = nome || label;
+  if (title) title.textContent = `Excluir ${label}?`;
+  if (message) message.textContent = `Tem certeza que deseja excluir "${displayName}"? Esta ação não poderá ser desfeita.`;
+  if (confirmBtn) { confirmBtn.innerHTML = `<i class="fas fa-trash-can"></i> Excluir ${label}`; confirmBtn.className = 'btn-confirm-delete'; confirmBtn.onclick = function() { fecharModalConfirmacao(); executarExclusao(tipo, id); }; }
+  if (cancelBtn) cancelBtn.onclick = fecharModalConfirmacao;
+  pendingDeleteAction = tipo; pendingDeleteId = id; pendingDeleteLabel = displayName;
+  modal.style.display = 'flex';
+  if (overlay) overlay.style.display = 'block';
+  requestAnimationFrame(() => modal.classList.add('show'));
+}
+
+function fecharModalConfirmacao() {
+  const modal = document.getElementById('confirmDeleteModal');
+  const overlay = document.getElementById('confirmDeleteOverlay');
+  if (modal) { modal.classList.remove('show'); setTimeout(() => { modal.style.display = 'none'; }, 200); }
+  if (overlay) overlay.style.display = 'none';
+  pendingDeleteAction = null; pendingDeleteId = null; pendingDeleteLabel = '';
+}
+
+function executarExclusao(tipo, id) {
+  switch (tipo) {
+    case 'cliente': excluirClienteFirestore(id); break;
+    case 'plano': excluirPlanoFirestore(id); break;
+    case 'mensalidade': excluirMensalidadeFirestore(id); break;
+    case 'recebimento': excluirRecebimentoFirestore(id); break;
+    case 'despesa': excluirDespesaFirestore(id); break;
+    case 'usuario': excluirUsuarioAdmin(id); break;
+    default: console.error('Tipo desconhecido:', tipo);
+  }
+}
+
+function excluirClienteFirestore(id) {
+  db.collection("clientes").doc(id).delete().then(async () => { showToast("Cliente removido!", "success", "Excluído"); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("cliente_excluido", `Cliente excluído: ID ${id}`); }).catch((erro) => showToast("Erro ao excluir: " + erro.message, "error", "Erro"));
+}
+
+function excluirPlanoFirestore(id) {
+  db.collection("planos").doc(id).delete().then(async () => { showToast("Plano removido!", "success", "Excluído"); await registrarAuditoria("plano_excluido", `Plano excluído: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+}
+
+function excluirMensalidadeFirestore(id) {
+  db.collection("mensalidades").doc(id).delete().then(() => { showToast("Mensalidade removida!", "success", "Excluído"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+}
+
+function excluirRecebimentoFirestore(id) {
+  db.collection("recebimentos").doc(id).delete().then(async () => { showToast("Recebimento removido!", "success", "Excluído"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("recebimento_excluido", `Recebimento excluído: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+}
+
+function excluirDespesaFirestore(id) {
+  db.collection("despesas").doc(id).delete().then(async () => { showToast("Despesa removida!", "success", "Excluído"); carregarDespesas(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("despesa_excluida", `Despesa excluída: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+}
+
+function excluirCliente(id) { abrirModalExclusao('cliente', id, ''); }
+function excluirPlano(id) { abrirModalExclusao('plano', id, ''); }
+function excluirMensalidade(id) { abrirModalExclusao('mensalidade', id, ''); }
+function excluirRecebimento(id) { abrirModalExclusao('recebimento', id, ''); }
+function excluirDespesa(id) { abrirModalExclusao('despesa', id, ''); }
 
 // ===========================
 // PLANOS
@@ -1163,830 +1348,237 @@ function salvarPlano() {
   const nome = sanitizarInput(document.getElementById("nomePlano").value);
   const velocidade = sanitizarInput(document.getElementById("velocidadePlano").value);
   const valor = Number(document.getElementById("valorPlano").value);
-
-  if (!nome || !velocidade || !valor) {
-    alert("Preencha todos os campos do plano!");
-    return;
-  }
-
-  const plano = secureData({
-    nome,
-    velocidade,
-    valor,
-    dataCadastro: new Date()
-  });
-
-  db.collection("planos")
-    .add(plano)
-    .then(async () => {
-      alert("Plano cadastrado com sucesso!");
-      limparFormularioPlano();
-      await registrarAuditoria("plano_criado", `Plano cadastrado: ${nome}`);
-    })
-    .catch((erro) => {
-      alert("Erro ao salvar: " + erro.message);
-    });
+  if (!nome || !velocidade || !valor) { showToast("Preencha todos os campos!", "error", "Validação"); return; }
+  db.collection("planos").add(secureData({ nome, velocidade, valor, dataCadastro: new Date() })).then(async () => { showToast("Plano cadastrado!", "success", "Sucesso"); limparFormularioPlano(); await registrarAuditoria("plano_criado", `Plano: ${nome}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function carregarPlanos() {
   if (planosListener) planosListener();
-
-  let query = db.collection("planos")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("nome");
-
+  const query = db.collection("planos").where("tenantId", "==", getTenantId()).orderBy("nome");
   planosListener = query.onSnapshot((snapshot) => {
     const tabela = document.getElementById("listaPlanos");
     if (!tabela) return;
     tabela.innerHTML = "";
-
     snapshot.forEach((doc) => {
-      const plano = doc.data();
-      tabela.innerHTML += `
-        <tr>
-          <td>${plano.nome || ""}</td>
-          <td>${plano.velocidade || ""}</td>
-          <td>R$ ${Number(plano.valor).toFixed(2)}</td>
-          <td>
-            <button onclick="editarPlano('${doc.id}')">
-              <i class="fas fa-pencil"></i> Editar
-            </button>
-            <button onclick="excluirPlano('${doc.id}')">
-              <i class="fas fa-trash"></i> Excluir
-            </button>
-          </td>
-        </tr>
-      `;
+      const p = doc.data();
+      tabela.innerHTML += `<tr><td>${p.nome || ""}</td><td>${p.velocidade || ""}</td><td>R$ ${Number(p.valor).toFixed(2)}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarPlano('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('plano', '${doc.id}', '${p.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
     });
-  }, (erro) => {
-    console.error("Erro ao carregar planos:", erro);
-  });
+  }, (erro) => console.error("Erro ao carregar planos:", erro));
 }
 
 function carregarPlanosSelect() {
   const select = document.getElementById("plano");
   if (!select) return;
-
-  db.collection("planos")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("nome")
-    .onSnapshot((snapshot) => {
-      select.innerHTML = '<option value="">Selecione um plano</option>';
-
-      snapshot.forEach((doc) => {
-        const plano = doc.data();
-        const option = document.createElement("option");
-        option.value = plano.nome;
-        option.textContent = `${plano.nome} - ${plano.velocidade} - R$ ${Number(plano.valor).toFixed(2)}`;
-        select.appendChild(option);
-      });
-    }, (erro) => {
-      console.error("Erro ao carregar planos select:", erro);
-    });
+  db.collection("planos").where("tenantId", "==", getTenantId()).orderBy("nome").onSnapshot((snapshot) => {
+    select.innerHTML = '<option value="">Selecione um plano</option>';
+    snapshot.forEach((doc) => { const p = doc.data(); const opt = document.createElement("option"); opt.value = p.nome; opt.textContent = `${p.nome} - ${p.velocidade} - R$ ${Number(p.valor).toFixed(2)}`; select.appendChild(opt); });
+  }, (erro) => console.error("Erro ao carregar planos select:", erro));
 }
 
 async function editarPlano(id) {
   try {
     const docRef = await db.collection("planos").doc(id).get();
-    if (!docRef.exists) {
-      alert("Plano não encontrado!");
-      return;
-    }
-    const plano = docRef.data();
-
-    planoEditando = id;
-    sessionStorage.setItem('planoEditandoId', id);
-
-    document.getElementById("nomePlano").value = plano.nome || "";
-    document.getElementById("velocidadePlano").value = plano.velocidade || "";
-    document.getElementById("valorPlano").value = plano.valor || "";
-  } catch (erro) {
-    console.error("Erro ao editar plano:", erro);
-    alert("Erro ao carregar dados do plano: " + erro.message);
-  }
+    if (!docRef.exists) { showToast("Plano não encontrado!", "error", "Erro"); return; }
+    const p = docRef.data();
+    planoEditando = id; sessionStorage.setItem('planoEditandoId', id);
+    document.getElementById("nomePlano").value = p.nome || "";
+    document.getElementById("velocidadePlano").value = p.velocidade || "";
+    document.getElementById("valorPlano").value = p.valor || "";
+  } catch (erro) { showToast("Erro: " + erro.message, "error", "Erro"); }
 }
 
 async function atualizarPlano() {
   const id = planoEditando || sessionStorage.getItem('planoEditandoId');
-  if (!id) {
-    alert("Selecione um plano para editar.");
-    return;
-  }
-
+  if (!id) { showToast("Selecione um plano!", "warning", "Atenção"); return; }
   try {
-    await db.collection("planos").doc(id).update(secureUpdate({
-      nome: document.getElementById("nomePlano").value,
-      velocidade: document.getElementById("velocidadePlano").value,
-      valor: Number(document.getElementById("valorPlano").value)
-    }));
-
-    alert("Plano atualizado com sucesso!");
-    planoEditando = null;
-    sessionStorage.removeItem('planoEditandoId');
-    limparFormularioPlano();
-    await registrarAuditoria("plano_atualizado", `Plano atualizado: ID ${id}`);
-  } catch (erro) {
-    alert("Erro ao atualizar: " + erro.message);
-  }
-}
-
-function excluirPlano(id) {
-  if (!confirm("Deseja excluir este plano?")) return;
-
-  db.collection("planos")
-    .doc(id)
-    .delete()
-    .then(async () => {
-      alert("Plano removido!");
-      await registrarAuditoria("plano_excluido", `Plano excluído: ID ${id}`);
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
+    await db.collection("planos").doc(id).update(secureUpdate({ nome: document.getElementById("nomePlano").value, velocidade: document.getElementById("velocidadePlano").value, valor: Number(document.getElementById("valorPlano").value) }));
+    showToast("Plano atualizado!", "success", "Sucesso");
+    planoEditando = null; sessionStorage.removeItem('planoEditandoId'); limparFormularioPlano();
+    await registrarAuditoria("plano_atualizado", `Plano ID ${id}`);
+  } catch (erro) { showToast("Erro: " + erro.message, "error", "Erro"); }
 }
 
 function limparFormularioPlano() {
-  document.getElementById("nomePlano").value = "";
-  document.getElementById("velocidadePlano").value = "";
-  document.getElementById("valorPlano").value = "";
-  planoEditando = null;
-  sessionStorage.removeItem('planoEditandoId');
+  document.getElementById("nomePlano").value = ""; document.getElementById("velocidadePlano").value = "";
+  document.getElementById("valorPlano").value = ""; planoEditando = null; sessionStorage.removeItem('planoEditandoId');
 }
 
 function preencherValorPlano() {
   const nomePlano = document.getElementById("plano").value;
   if (!nomePlano) return;
-
-  db.collection("planos")
-    .where("nome", "==", nomePlano)
-    .where("tenantId", "==", getTenantId())
-    .limit(1)
-    .get()
-    .then((snapshot) => {
-      if (!snapshot.empty) {
-        const plano = snapshot.docs[0].data();
-        document.getElementById("valor").value = plano.valor || "";
-      }
-    })
-    .catch((erro) => {
-      console.error("Erro ao preencher valor do plano:", erro);
-    });
+  db.collection("planos").where("nome", "==", nomePlano).where("tenantId", "==", getTenantId()).limit(1).get().then((snapshot) => { if (!snapshot.empty) document.getElementById("valor").value = snapshot.docs[0].data().valor || ""; }).catch((erro) => console.error("Erro ao preencher valor:", erro));
 }
 
 // ===========================
-// MENSALIDADES RECURRENTES
+// MENSALIDADES
 // ===========================
 
 function gerarMensalidadeInicial(clienteId, clienteNome, plano, valor, vencimento) {
-  const dataAtual = new Date();
-  const competencia = formatarCompetencia(dataAtual);
+  const dataAtual = new Date(); const competencia = formatarCompetencia(dataAtual);
   const dataVencimento = calcularDataVencimento(vencimento, dataAtual);
-
-  db.collection("mensalidades")
-    .where("clienteId", "==", clienteId)
-    .where("competencia", "==", competencia)
-    .get()
-    .then((snapshot) => {
-      if (snapshot.empty) {
-        const mensalidade = secureData({
-          clienteId,
-          clienteNome,
-          plano,
-          valor,
-          vencimento: dataVencimento,
-          competencia,
-          status: "Em Aberto",
-          dataGeracao: new Date(),
-          tipo: "Recorrente"
-        });
-
-        db.collection("mensalidades")
-          .add(mensalidade)
-          .then(() => {
-            console.log("Primeira mensalidade gerada automaticamente para cliente:", clienteNome);
-          })
-          .catch((erro) => {
-            console.error("Erro ao gerar mensalidade inicial:", erro);
-          });
-      }
-    })
-    .catch((erro) => {
-      console.error("Erro ao verificar mensalidade existente:", erro);
-    });
+  db.collection("mensalidades").where("clienteId", "==", clienteId).where("competencia", "==", competencia).get().then((snapshot) => {
+    if (snapshot.empty) { db.collection("mensalidades").add(secureData({ clienteId, clienteNome, plano, valor, vencimento: dataVencimento, competencia, status: "Em Aberto", dataGeracao: new Date(), tipo: "Recorrente" })).catch(e => console.error("Erro ao gerar mensalidade:", e)); }
+  }).catch(e => console.error("Erro ao verificar mensalidade:", e));
 }
 
 function gerarMensalidadesNovoMes() {
-  const dataAtual = new Date();
-  const competencia = formatarCompetencia(dataAtual);
-
-  db.collection("clientes")
-    .where("tenantId", "==", getTenantId())
-    .where("status", "==", "Ativo")
-    .get()
-    .then((snapshot) => {
-      let processadas = 0;
-      snapshot.forEach((clienteDoc) => {
-        const cliente = clienteDoc.data();
-        const clienteId = clienteDoc.id;
-
-        db.collection("mensalidades")
-          .where("clienteId", "==", clienteId)
-          .where("competencia", "==", competencia)
-          .get()
-          .then((mensalidadeSnapshot) => {
-            if (mensalidadeSnapshot.empty && cliente.valor > 0 && cliente.vencimento) {
-              const dataVencimento = calcularDataVencimento(cliente.vencimento, dataAtual);
-
-              const mensalidade = secureData({
-                clienteId,
-                clienteNome: cliente.nome,
-                plano: cliente.plano,
-                valor: cliente.valor,
-                vencimento: dataVencimento,
-                competencia,
-                status: "Em Aberto",
-                dataGeracao: new Date(),
-                tipo: "Recorrente"
-              });
-
-              db.collection("mensalidades")
-                .add(mensalidade)
-                .then(() => {
-                  processadas++;
-                  console.log("Mensalidade gerada para cliente:", cliente.nome);
-                })
-                .catch((erro) => {
-                  console.error("Erro ao gerar mensalidade:", erro);
-                });
-            }
-          })
-          .catch((erro) => {
-            console.error("Erro ao verificar mensalidade existente:", erro);
-          });
+  const dataAtual = new Date(); const competencia = formatarCompetencia(dataAtual);
+  db.collection("clientes").where("tenantId", "==", getTenantId()).where("status", "==", "Ativo").get().then((snapshot) => {
+    let processadas = 0; let total = snapshot.size;
+    snapshot.forEach((clienteDoc) => {
+      const cliente = clienteDoc.data(); const clienteId = clienteDoc.id;
+      db.collection("mensalidades").where("clienteId", "==", clienteId).where("competencia", "==", competencia).get().then((mensSnap) => {
+        if (mensSnap.empty && cliente.valor > 0 && cliente.vencimento) {
+          const dataVencimento = calcularDataVencimento(cliente.vencimento, dataAtual);
+          db.collection("mensalidades").add(secureData({ clienteId, clienteNome: cliente.nome, plano: cliente.plano, valor: cliente.valor, vencimento: dataVencimento, competencia, status: "Em Aberto", dataGeracao: new Date(), tipo: "Recorrente" })).then(() => processadas++).catch(e => console.error("Erro:", e));
+        }
       });
-      if (snapshot.size > 0) {
-        setTimeout(() => {
-          alert(`${processadas} mensalidades geradas com sucesso!`);
-          carregarRecebimentos();
-          carregarFinanceiro();
-        }, 2000);
-      }
-    })
-    .catch((erro) => {
-      console.error("Erro ao buscar clientes ativos:", erro);
     });
+    setTimeout(() => { showToast(`${processadas} mensalidades geradas!`, "success", "Mensalidades"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); }, 2000);
+  }).catch((erro) => console.error("Erro ao buscar clientes:", erro));
 }
 
-function formatarCompetencia(data) {
-  const mes = String(data.getMonth() + 1).padStart(2, '0');
-  const ano = data.getFullYear();
-  return `${mes}/${ano}`;
-}
-
-function calcularDataVencimento(diaVencimento, dataReferencia) {
-  const data = new Date(dataReferencia);
-  data.setDate(parseInt(diaVencimento));
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, '0');
-  const dia = String(data.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
-}
-
-function verificarGeracaoMensalidades() {
-  const dataAtual = new Date();
-  const dia = dataAtual.getDate();
-  if (dia === 1) {
-    gerarMensalidadesNovoMes();
-  }
-}
+function formatarCompetencia(data) { return `${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`; }
+function calcularDataVencimento(diaVencimento, dataReferencia) { const data = new Date(dataReferencia); data.setDate(parseInt(diaVencimento)); return `${data.getFullYear()}-${String(data.getMonth()+1).padStart(2,'0')}-${String(data.getDate()).padStart(2,'0')}`; }
+function verificarGeracaoMensalidades() { if (new Date().getDate() === 1) gerarMensalidadesNovoMes(); }
 
 function marcarMensalidadePaga(mensalidadeId) {
-  db.collection("mensalidades")
-    .doc(mensalidadeId)
-    .update(secureUpdate({
-      status: "Pago",
-      dataPagamento: new Date()
-    }))
-    .then(() => {
-      alert("Mensalidade marcada como paga!");
-      carregarRecebimentos();
-      carregarFinanceiro();
-      atualizarFluxoCaixa();
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
+  db.collection("mensalidades").doc(mensalidadeId).update(secureUpdate({ status: "Pago", dataPagamento: new Date() })).then(() => { showToast("Mensalidade paga!", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); atualizarFluxoCaixa(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function marcarMensalidadeAtrasada(mensalidadeId) {
-  db.collection("mensalidades")
-    .doc(mensalidadeId)
-    .update(secureUpdate({
-      status: "Atrasado"
-    }))
-    .then(() => {
-      alert("Mensalidade marcada como atrasada!");
-      carregarRecebimentos();
-      carregarFinanceiro();
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
-}
-
-function excluirMensalidade(mensalidadeId) {
-  if (!confirm("Deseja excluir esta mensalidade?")) return;
-
-  db.collection("mensalidades")
-    .doc(mensalidadeId)
-    .delete()
-    .then(() => {
-      alert("Mensalidade removida!");
-      carregarRecebimentos();
-      carregarFinanceiro();
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
+  db.collection("mensalidades").doc(mensalidadeId).update(secureUpdate({ status: "Atrasado" })).then(() => { showToast("Mensalidade atrasada!", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 // ===========================
-// FINANCEIRO - CONTAS A RECEBER
+// FINANCEIRO - RECEBER
 // ===========================
 
-function abrirModalRecebimento() {
-  document.getElementById("modalRecebimento").style.display = "flex";
-  carregarClientesRecebimento();
-}
-
-function fecharModalRecebimento() {
-  document.getElementById("modalRecebimento").style.display = "none";
-}
+function abrirModalRecebimento() { document.getElementById("modalRecebimento").style.display = "flex"; carregarClientesRecebimento(); }
+function fecharModalRecebimento() { document.getElementById("modalRecebimento").style.display = "none"; }
 
 function carregarClientesRecebimento() {
   const select = document.getElementById("receb_cliente");
   if (!select) return;
-
-  db.collection("clientes")
-    .where("tenantId", "==", getTenantId())
-    .where("status", "==", "Ativo")
-    .orderBy("nome")
-    .get()
-    .then((snapshot) => {
-      select.innerHTML = '<option value="">-- Selecione um cliente --</option>';
-      snapshot.forEach((doc) => {
-        const cliente = doc.data();
-        const option = document.createElement("option");
-        option.value = doc.id;
-        option.textContent = cliente.nome;
-        select.appendChild(option);
-      });
-    })
-    .catch((erro) => {
-      console.error("Erro ao carregar clientes:", erro);
-    });
+  db.collection("clientes").where("tenantId", "==", getTenantId()).where("status", "==", "Ativo").orderBy("nome").get().then((snapshot) => {
+    select.innerHTML = '<option value="">-- Selecione --</option>';
+    snapshot.forEach((doc) => { const c = doc.data(); const opt = document.createElement("option"); opt.value = doc.id; opt.textContent = c.nome; select.appendChild(opt); });
+  }).catch((erro) => console.error("Erro ao carregar clientes:", erro));
 }
 
 function salvarRecebimento() {
-  const clienteId = document.getElementById("receb_cliente").value;
-  const valor = Number(document.getElementById("receb_valor").value);
-  const vencimento = document.getElementById("receb_vencimento").value;
-  const pagamento = document.getElementById("receb_pagamento").value;
-  const status = document.getElementById("receb_status").value;
-  const observacao = sanitizarTexto(document.getElementById("receb_observacao").value);
-
-  if (!clienteId || !valor || !vencimento || !pagamento) {
-    alert("Preencha todos os campos obrigatórios!");
-    return;
-  }
-
-  db.collection("recebimentos")
-    .add(secureData({
-      clienteId,
-      valor,
-      vencimento,
-      pagamento,
-      status,
-      observacao,
-      dataCadastro: new Date()
-    }))
-    .then(async () => {
-      alert("Cobrança cadastrada com sucesso!");
-      fecharModalRecebimento();
-      carregarRecebimentos();
-      carregarFinanceiro();
-      await registrarAuditoria("recebimento_criado", `Cobrança criada: R$ ${valor}`);
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
+  const clienteId = document.getElementById("receb_cliente").value; const valor = Number(document.getElementById("receb_valor").value);
+  const vencimento = document.getElementById("receb_vencimento").value; const pagamento = document.getElementById("receb_pagamento").value;
+  const status = document.getElementById("receb_status").value; const observacao = sanitizarTexto(document.getElementById("receb_observacao").value);
+  if (!clienteId || !valor || !vencimento || !pagamento) { showToast("Preencha todos os campos!", "error", "Validação"); return; }
+  db.collection("recebimentos").add(secureData({ clienteId, valor, vencimento, pagamento, status, observacao, dataCadastro: new Date() })).then(async () => { showToast("Cobrança cadastrada!", "success", "Sucesso"); fecharModalRecebimento(); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("recebimento_criado", `Cobrança: R$ ${valor}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function carregarRecebimentos() {
   const tabela = document.getElementById("listaRecebimentos");
   if (!tabela) return;
   tabela.innerHTML = "";
-
-  if (recebimentosListener) {
-    recebimentosListener();
-  }
-
-  let queryMensalidades = db.collection("mensalidades")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("vencimento", "desc")
-    .limit(configuracoesSistema.paginacao.recebimentos);
-
-  if (recebimentosLastDoc) {
-    queryMensalidades = queryMensalidades.startAfter(recebimentosLastDoc);
-  }
-
-  recebimentosListener = queryMensalidades.onSnapshot((mensalidadeSnapshot) => {
-    let htmlMensalidades = "";
-    mensalidadeSnapshot.forEach((doc) => {
-      const mens = doc.data();
-      const statusClass = mens.status === "Pago" ? "status-pago" : mens.status === "Atrasado" ? "status-atrasado" : "status-pendente";
-
-      htmlMensalidades += `
-        <tr>
-          <td>${mens.clienteNome || ""}</td>
-          <td>R$ ${mens.valor.toFixed(2)}</td>
-          <td>${mens.vencimento}</td>
-          <td><span class="${statusClass}">${mens.status}</span></td>
-          <td>${mens.tipo || "Recorrente"}</td>
-          <td>
-            ${mens.status !== "Pago" ? `<button onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i> Pago</button>` : ""}
-            ${mens.status === "Em Aberto" ? `<button onclick="marcarMensalidadeAtrasada('${doc.id}')"><i class="fas fa-exclamation"></i> Atrasado</button>` : ""}
-            <button onclick="excluirMensalidade('${doc.id}')"><i class="fas fa-trash"></i></button>
-          </td>
-        </tr>
-      `;
+  if (recebimentosListener) recebimentosListener();
+  let query = db.collection("mensalidades").where("tenantId", "==", getTenantId()).orderBy("vencimento", "desc").limit(configuracoesSistema.paginacao.recebimentos);
+  if (recebimentosLastDoc) query = query.startAfter(recebimentosLastDoc);
+  recebimentosListener = query.onSnapshot((mensSnap) => {
+    let html = "";
+    mensSnap.forEach((doc) => {
+      const m = doc.data();
+      const sc = m.status === "Pago" ? "status-pago" : m.status === "Atrasado" ? "status-atrasado" : "status-pendente";
+      html += `<tr><td>${m.clienteNome || ""}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td><span class="${sc}">${m.status}</span></td><td>${m.tipo || "Recorrente"}</td><td><div class="action-buttons">${m.status !== "Pago" ? `<button class="btn-action btn-action-success" onclick="marcarMensalidadePaga('${doc.id}')" title="Pago"><i class="fas fa-check"></i><span class="tooltip-text">Pago</span></button>` : ""}${m.status === "Em Aberto" ? `<button class="btn-action btn-action-warning" onclick="marcarMensalidadeAtrasada('${doc.id}')" title="Atrasado"><i class="fas fa-exclamation"></i><span class="tooltip-text">Atrasado</span></button>` : ""}<button class="btn-action btn-action-delete" onclick="abrirModalExclusao('mensalidade', '${doc.id}', '${m.clienteNome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
     });
-
-    // Carregar recebimentos manuais e adicionar abaixo
-    db.collection("recebimentos")
-      .where("tenantId", "==", getTenantId())
-      .orderBy("vencimento", "desc")
-      .limit(20)
-      .get()
-      .then((snapshot) => {
-        snapshot.forEach((doc) => {
-          const receb = doc.data();
-          db.collection("clientes")
-            .doc(receb.clienteId)
-            .get()
-            .then((clienteDoc) => {
-              if (clienteDoc.exists) {
-                const cliente = clienteDoc.data();
-                const statusClass = receb.status === "Pago" ? "status-pago" : receb.status === "Atrasado" ? "status-atrasado" : "status-pendente";
-
-                htmlMensalidades += `
-                  <tr>
-                    <td>${cliente.nome || ""}</td>
-                    <td>R$ ${receb.valor.toFixed(2)}</td>
-                    <td>${receb.vencimento}</td>
-                    <td><span class="${statusClass}">${receb.status}</span></td>
-                    <td>${receb.pagamento}</td>
-                    <td>
-                      <button onclick="excluirRecebimento('${doc.id}')"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                `;
-              }
-              tabela.innerHTML = htmlMensalidades;
-            })
-            .catch(() => {
-              tabela.innerHTML = htmlMensalidades;
-            });
-        });
-        if (snapshot.size === 0) {
-          tabela.innerHTML = htmlMensalidades;
-        }
-      })
-      .catch((erro) => {
-        console.error("Erro ao carregar recebimentos:", erro);
-        tabela.innerHTML = htmlMensalidades;
-      });
-
-    if (mensalidadeSnapshot.docs.length > 0) {
-      recebimentosLastDoc = mensalidadeSnapshot.docs[mensalidadeSnapshot.docs.length - 1];
-    } else {
-      recebimentosLastDoc = null;
-    }
-  }, (erro) => {
-    console.error("Erro ao carregar mensalidades:", erro);
-  });
+    db.collection("recebimentos").where("tenantId", "==", getTenantId()).orderBy("vencimento", "desc").limit(20).get().then((snap) => {
+      snap.forEach((doc) => { const r = doc.data(); db.collection("clientes").doc(r.clienteId).get().then((cDoc) => { if (cDoc.exists) { const c = cDoc.data(); const sc = r.status === "Pago" ? "status-pago" : "status-pendente"; html += `<tr><td>${c.nome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td><span class="${sc}">${r.status}</span></td><td>${r.pagamento}</td><td><div class="action-buttons"><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('recebimento', '${doc.id}', '${c.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`; tabela.innerHTML = html; } }).catch(() => { tabela.innerHTML = html; }); });
+      if (snap.size === 0) tabela.innerHTML = html;
+    }).catch(() => { tabela.innerHTML = html; });
+    recebimentosLastDoc = mensSnap.docs.length > 0 ? mensSnap.docs[mensSnap.docs.length - 1] : null;
+  }, (erro) => console.error("Erro ao carregar recebimentos:", erro));
 }
 
 function filtrarRecebimentos() {
   const busca = document.getElementById("buscaClienteReceb").value.toLowerCase();
   const status = document.getElementById("filtroStatusReceb").value;
-
-  const linhas = document.querySelectorAll("#listaRecebimentos tr");
-  linhas.forEach((linha) => {
+  document.querySelectorAll("#listaRecebimentos tr").forEach(linha => {
     if (linha.cells.length === 0) return;
     const cliente = linha.cells[0].textContent.toLowerCase();
-    const statusLinha = linha.cells[3].textContent;
-    const matchBusca = cliente.includes(busca);
-    const matchStatus = status === "" || statusLinha.includes(status);
-    linha.style.display = matchBusca && matchStatus ? "" : "none";
+    const s = linha.cells[3].textContent;
+    linha.style.display = cliente.includes(busca) && (status === "" || s.includes(status)) ? "" : "none";
   });
 }
 
-function excluirRecebimento(id) {
-  if (!confirm("Deseja excluir este recebimento?")) return;
-
-  db.collection("recebimentos")
-    .doc(id)
-    .delete()
-    .then(async () => {
-      alert("Recebimento removido!");
-      carregarRecebimentos();
-      carregarFinanceiro();
-      await registrarAuditoria("recebimento_excluido", `Recebimento excluído: ID ${id}`);
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
-}
-
 // ===========================
-// FINANCEIRO - CONTAS A PAGAR
+// FINANCEIRO - PAGAR
 // ===========================
 
-function abrirModalDespesa() {
-  document.getElementById("modalDespesa").style.display = "flex";
-}
-
-function fecharModalDespesa() {
-  document.getElementById("modalDespesa").style.display = "none";
-}
+function abrirModalDespesa() { document.getElementById("modalDespesa").style.display = "flex"; }
+function fecharModalDespesa() { document.getElementById("modalDespesa").style.display = "none"; }
 
 function salvarDespesa() {
-  const descricao = sanitizarInput(document.getElementById("desp_descricao").value);
-  const categoria = document.getElementById("desp_categoria").value;
-  const valor = Number(document.getElementById("desp_valor").value);
-  const vencimento = document.getElementById("desp_vencimento").value;
-  const status = document.getElementById("desp_status").value;
-  const observacao = sanitizarTexto(document.getElementById("desp_observacao").value);
-
-  if (!descricao || !categoria || !valor || !vencimento) {
-    alert("Preencha todos os campos obrigatórios!");
-    return;
-  }
-
-  db.collection("despesas")
-    .add(secureData({
-      descricao,
-      categoria,
-      valor,
-      vencimento,
-      status,
-      observacao,
-      dataCadastro: new Date()
-    }))
-    .then(async () => {
-      alert("Despesa cadastrada com sucesso!");
-      fecharModalDespesa();
-      limparFormularioDespesa();
-      carregarDespesas();
-      carregarFinanceiro();
-      await registrarAuditoria("despesa_criada", `Despesa criada: ${descricao} - R$ ${valor}`);
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
+  const descricao = sanitizarInput(document.getElementById("desp_descricao").value); const categoria = document.getElementById("desp_categoria").value;
+  const valor = Number(document.getElementById("desp_valor").value); const vencimento = document.getElementById("desp_vencimento").value;
+  const status = document.getElementById("desp_status").value; const observacao = sanitizarTexto(document.getElementById("desp_observacao").value);
+  if (!descricao || !categoria || !valor || !vencimento) { showToast("Preencha todos os campos!", "error", "Validação"); return; }
+  db.collection("despesas").add(secureData({ descricao, categoria, valor, vencimento, status, observacao, dataCadastro: new Date() })).then(async () => { showToast("Despesa cadastrada!", "success", "Sucesso"); fecharModalDespesa(); limparFormularioDespesa(); carregarDespesas(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("despesa_criada", `Despesa: ${descricao} - R$ ${valor}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function carregarDespesas() {
   if (despesasListener) despesasListener();
-
-  let query = db.collection("despesas")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("vencimento", "desc")
-    .limit(configuracoesSistema.paginacao.despesas);
-
-  if (despesasLastDoc) {
-    query = query.startAfter(despesasLastDoc);
-  }
-
+  let query = db.collection("despesas").where("tenantId", "==", getTenantId()).orderBy("vencimento", "desc").limit(configuracoesSistema.paginacao.despesas);
+  if (despesasLastDoc) query = query.startAfter(despesasLastDoc);
   despesasListener = query.onSnapshot((snapshot) => {
     const tabela = document.getElementById("listaDespesas");
     if (!tabela) return;
     tabela.innerHTML = "";
-
-    snapshot.forEach((doc) => {
-      const desp = doc.data();
-      const statusClass = desp.status === "Pago" ? "status-pago" : "status-pendente";
-
-      tabela.innerHTML += `
-        <tr>
-          <td>${desp.descricao}</td>
-          <td>${desp.categoria}</td>
-          <td>R$ ${desp.valor.toFixed(2)}</td>
-          <td>${desp.vencimento}</td>
-          <td><span class="${statusClass}">${desp.status}</span></td>
-          <td>
-            <button onclick="editarDespesa('${doc.id}')"><i class="fas fa-pencil"></i></button>
-            <button onclick="excluirDespesa('${doc.id}')"><i class="fas fa-trash"></i></button>
-          </td>
-        </tr>
-      `;
-    });
-
-    if (snapshot.docs.length > 0) {
-      despesasLastDoc = snapshot.docs[snapshot.docs.length - 1];
-    } else {
-      despesasLastDoc = null;
-    }
-  }, (erro) => {
-    console.error("Erro ao carregar despesas:", erro);
-  });
+    snapshot.forEach((doc) => { const d = doc.data(); const sc = d.status === "Pago" ? "status-pago" : "status-pendente"; tabela.innerHTML += `<tr><td>${d.descricao}</td><td>${d.categoria}</td><td>R$ ${d.valor.toFixed(2)}</td><td>${d.vencimento}</td><td><span class="${sc}">${d.status}</span></td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarDespesa('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('despesa', '${doc.id}', '${d.descricao}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`; });
+    despesasLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+  }, (erro) => console.error("Erro ao carregar despesas:", erro));
 }
 
 function filtrarDespesas() {
   const busca = document.getElementById("buscaDespesa").value.toLowerCase();
   const categoria = document.getElementById("filtroCategoriaDespesa").value;
   const status = document.getElementById("filtroStatusDespesa").value;
-
-  const linhas = document.querySelectorAll("#listaDespesas tr");
-  linhas.forEach((linha) => {
-    if (linha.cells.length === 0) return;
-    const descricao = linha.cells[0].textContent.toLowerCase();
-    const categLinha = linha.cells[1].textContent;
-    const statusLinha = linha.cells[4].textContent;
-
-    const matchBusca = descricao.includes(busca);
-    const matchCateg = categoria === "" || categLinha === categoria;
-    const matchStatus = status === "" || statusLinha.includes(status);
-
-    linha.style.display = matchBusca && matchCateg && matchStatus ? "" : "none";
+  document.querySelectorAll("#listaDespesas tr").forEach(linha => {
+    if (linha.cells.length < 5) return;
+    const d = linha.cells[0].textContent.toLowerCase(); const c = linha.cells[1].textContent; const s = linha.cells[4].textContent;
+    linha.style.display = d.includes(busca) && (categoria === "" || c === categoria) && (status === "" || s.includes(status)) ? "" : "none";
   });
 }
 
-function editarDespesa(id) {
-  // Implementar edição se necessário
-  alert("Edição de despesa será implementada em breve.");
-}
-
-function excluirDespesa(id) {
-  if (!confirm("Deseja excluir esta despesa?")) return;
-
-  db.collection("despesas")
-    .doc(id)
-    .delete()
-    .then(async () => {
-      alert("Despesa removida!");
-      carregarDespesas();
-      carregarFinanceiro();
-      await registrarAuditoria("despesa_excluida", `Despesa excluída: ID ${id}`);
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
-}
+function editarDespesa(id) { showToast("Edição de despesa em breve.", "info", "Em desenvolvimento"); }
 
 function limparFormularioDespesa() {
   document.getElementById("desp_descricao").value = "";
   if (document.getElementById("desp_categoria")) document.getElementById("desp_categoria").selectedIndex = 0;
-  document.getElementById("desp_valor").value = "";
-  document.getElementById("desp_vencimento").value = "";
+  document.getElementById("desp_valor").value = ""; document.getElementById("desp_vencimento").value = "";
   if (document.getElementById("desp_status")) document.getElementById("desp_status").selectedIndex = 0;
   document.getElementById("desp_observacao").value = "";
 }
 
 // ===========================
-// FINANCEIRO - FLUXO DE CAIXA
+// FLUXO DE CAIXA
 // ===========================
 
 function atualizarFluxoCaixa() {
   const dataInicio = document.getElementById("dataInicio").value;
   const dataFim = document.getElementById("dataFim").value;
-
-  fluxoCaixaListeners.forEach(listener => { if (listener) listener(); });
-  fluxoCaixaListeners = [];
-
+  financeiroListeners.forEach(l => { if (l) l(); }); financeiroListeners = [];
   Promise.all([
     db.collection("recebimentos").where("tenantId", "==", getTenantId()).get(),
     db.collection("despesas").where("tenantId", "==", getTenantId()).get(),
     db.collection("mensalidades").where("tenantId", "==", getTenantId()).get()
-  ]).then(([recebSnapshot, despSnapshot, mensalidadeSnapshot]) => {
-    let totalEntradas = 0;
-    let totalSaidas = 0;
-    let fluxoHTML = "";
-
-    recebSnapshot.forEach((doc) => {
-      const receb = doc.data();
-      if (receb.status === "Pago") {
-        const data = receb.vencimento;
-        if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-          totalEntradas += receb.valor;
-          fluxoHTML += `
-            <tr>
-              <td>${data}</td>
-              <td>Entrada</td>
-              <td>Recebimento Manual</td>
-              <td class="valor-entrada">+R$ ${receb.valor.toFixed(2)}</td>
-            </tr>
-          `;
-        }
-      }
-    });
-
-    mensalidadeSnapshot.forEach((doc) => {
-      const mens = doc.data();
-      if (mens.status === "Pago") {
-        const data = mens.dataPagamento || mens.vencimento;
-        if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-          totalEntradas += mens.valor;
-          fluxoHTML += `
-            <tr>
-              <td>${data}</td>
-              <td>Entrada</td>
-              <td>Mensalidade - ${mens.clienteNome}</td>
-              <td class="valor-entrada">+R$ ${mens.valor.toFixed(2)}</td>
-            </tr>
-          `;
-        }
-      }
-    });
-
-    despSnapshot.forEach((doc) => {
-      const desp = doc.data();
-      if (desp.status === "Pago") {
-        const data = desp.vencimento;
-        if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) {
-          totalSaidas += desp.valor;
-          fluxoHTML += `
-            <tr>
-              <td>${data}</td>
-              <td>Saída</td>
-              <td>${desp.descricao}</td>
-              <td class="valor-saida">-R$ ${desp.valor.toFixed(2)}</td>
-            </tr>
-          `;
-        }
-      }
-    });
-
-    const saldo = totalEntradas - totalSaidas;
-
-    const totalEntradasEl = document.getElementById("totalEntradas");
-    const totalSaidasEl = document.getElementById("totalSaidas");
-    const saldoAtualEl = document.getElementById("saldoAtual");
-    const listaFluxoEl = document.getElementById("listaFluxoCaixa");
-
-    if (totalEntradasEl) totalEntradasEl.innerText = "R$ " + totalEntradas.toFixed(2);
-    if (totalSaidasEl) totalSaidasEl.innerText = "R$ " + totalSaidas.toFixed(2);
-    if (saldoAtualEl) saldoAtualEl.innerText = "R$ " + saldo.toFixed(2);
-    if (listaFluxoEl) listaFluxoEl.innerHTML = fluxoHTML;
-  }).catch((erro) => {
-    console.error("Erro ao atualizar fluxo de caixa:", erro);
-  });
-}
-
-// ===========================
-// WHATSAPP INADIMPLENTE
-// ===========================
-
-function enviarWhatsAppInadimplente(nome, valor, vencimento, telefone = "") {
-  if (!telefone) {
-    db.collection("clientes")
-      .where("nome", "==", nome)
-      .where("tenantId", "==", getTenantId())
-      .limit(1)
-      .get()
-      .then((snapshot) => {
-        if (!snapshot.empty) {
-          const cliente = snapshot.docs[0].data();
-          abrirWhatsApp(cliente.telefone, nome, valor, vencimento);
-        } else {
-          alert("Cliente não encontrado para obter telefone.");
-        }
-      })
-      .catch((erro) => {
-        alert("Erro ao buscar telefone: " + erro.message);
-      });
-  } else {
-    abrirWhatsApp(telefone, nome, valor, vencimento);
-  }
-}
-
-function abrirWhatsApp(telefone, nome, valor, vencimento) {
-  const telefoneLimpo = telefone.replace(/\D/g, '');
-  const mensagem = `Olá, ${nome}!
-
-Identificamos uma mensalidade em aberto no valor de R$ ${valor}, vencida em ${vencimento}.
-
-Caso já tenha efetuado o pagamento, desconsidere esta mensagem.
-
-Em caso de dúvidas, entre em contato conosco.
-
-Atenciosamente,
-ControlISP`;
-
-  const mensagemCodificada = encodeURIComponent(mensagem);
-  const url = `https://wa.me/55${telefoneLimpo}?text=${mensagemCodificada}`;
-  window.open(url, '_blank');
+  ]).then(([receb, desp, mens]) => {
+    let entradas = 0, saidas = 0, fluxoHTML = "";
+    receb.forEach(doc => { const r = doc.data(); if (["Pago","Recebido","Quitado"].includes(r.status)) { if ((!dataInicio || r.vencimento >= dataInicio) && (!dataFim || r.vencimento <= dataFim)) { entradas += r.valor; fluxoHTML += `<tr><td>${r.vencimento}</td><td>Entrada</td><td>Recebimento</td><td class="valor-receita">+R$ ${r.valor.toFixed(2)}</td></tr>`; } } });
+    mens.forEach(doc => { const m = doc.data(); if (["Pago","Recebido","Quitado"].includes(m.status)) { const data = m.dataPagamento || m.vencimento; if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) { entradas += m.valor; fluxoHTML += `<tr><td>${data}</td><td>Entrada</td><td>Mensalidade - ${m.clienteNome}</td><td class="valor-receita">+R$ ${m.valor.toFixed(2)}</td></tr>`; } } });
+    desp.forEach(doc => { const d = doc.data(); if (d.status === "Pago") { if ((!dataInicio || d.vencimento >= dataInicio) && (!dataFim || d.vencimento <= dataFim)) { saidas += d.valor; fluxoHTML += `<tr><td>${d.vencimento}</td><td>Saída</td><td>${d.descricao}</td><td class="valor-despesa">-R$ ${d.valor.toFixed(2)}</td></tr>`; } } });
+    const saldo = entradas - saidas;
+    document.getElementById("totalEntradas").innerText = "R$ " + entradas.toFixed(2);
+    document.getElementById("totalSaidas").innerText = "R$ " + saidas.toFixed(2);
+    document.getElementById("saldoAtual").innerText = "R$ " + saldo.toFixed(2);
+    document.getElementById("listaFluxoCaixa").innerHTML = fluxoHTML;
+  }).catch(e => console.error("Erro fluxo:", e));
 }
 
 // ===========================
@@ -1994,1467 +1586,429 @@ ControlISP`;
 // ===========================
 
 function carregarFinanceiro() {
-  financeiroListeners.forEach(listener => { if (listener) listener(); });
-  financeiroListeners = [];
-
+  financeiroListeners.forEach(l => { if (l) l(); }); financeiroListeners = [];
+  const agora = new Date();
+  const dataBrasil = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const mesAtual = dataBrasil.getMonth(); const anoAtual = dataBrasil.getFullYear();
   Promise.all([
     db.collection("clientes").where("tenantId", "==", getTenantId()).get(),
     db.collection("recebimentos").where("tenantId", "==", getTenantId()).get(),
     db.collection("despesas").where("tenantId", "==", getTenantId()).get(),
     db.collection("mensalidades").where("tenantId", "==", getTenantId()).get()
-  ]).then(([clienteSnapshot, recebSnapshot, despSnapshot, mensalidadeSnapshot]) => {
-    let faturamentoMes = 0;
-    let totalRecebido = 0;
-    let totalAberto = 0;
-    let totalVencido = 0;
-    let totalDespesas = 0;
-    let clientesInadimplentes = 0;
-    let valorInadimplente = 0;
-    let recebidoQtd = 0;
-    let abertoQtd = 0;
-    let vencidoQtd = 0;
-    let despesasQtd = 0;
-    let receitaPrevista = 0;
-    let receitaRecebidaMes = 0;
-    let receitaAnualProjetada = 0;
-    let receitaAtraso = 0;
-
-    const dataAtual = new Date();
-    const mesAtual = dataAtual.getMonth();
-    const anoAtual = dataAtual.getFullYear();
-
-    clienteSnapshot.forEach((doc) => {
-      const cliente = doc.data();
-      if (cliente.status === "Ativo") {
-        faturamentoMes += Number(cliente.valor) || 0;
-        receitaPrevista += Number(cliente.valor) || 0;
-      }
-      if (cliente.status === "Inadimplente") {
-        clientesInadimplentes++;
-      }
-    });
-
+  ]).then(([cSnap, rSnap, dSnap, mSnap]) => {
+    let faturamentoMes = 0, totalRecebido = 0, totalAberto = 0;
+    let totalDespesas = 0, clientesInadimplentes = 0, valorInadimplente = 0;
+    let recebidoQtd = 0, abertoQtd = 0, despesasQtd = 0;
+    let receitaRecebidaMes = 0, receitaAnualProjetada = 0, receitaAtraso = 0;
+    const statusRecebido = ["Pago","Recebido","Quitado"];
+    cSnap.forEach(doc => { const c = doc.data(); if (c.status === "Ativo") faturamentoMes += Number(c.valor) || 0; if (c.status === "Inadimplente") clientesInadimplentes++; });
     receitaAnualProjetada = faturamentoMes * 12;
-
-    recebSnapshot.forEach((doc) => {
-      const receb = doc.data();
-      if (receb.status === "Pago") {
-        totalRecebido += receb.valor;
-        recebidoQtd++;
-        const dataPagamento = new Date(receb.vencimento);
-        if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
-          receitaRecebidaMes += receb.valor;
-        }
-      } else if (receb.status === "Pendente") {
-        totalAberto += receb.valor;
-        abertoQtd++;
-      } else if (receb.status === "Atrasado") {
-        totalVencido += receb.valor;
-        valorInadimplente += receb.valor;
-        vencidoQtd++;
-        receitaAtraso += receb.valor;
-      }
+    rSnap.forEach(doc => {
+      const r = doc.data();
+      if (statusRecebido.includes(r.status)) { totalRecebido += r.valor; recebidoQtd++; const dataPag = r.dataPagamento ? (r.dataPagamento.toDate ? r.dataPagamento.toDate() : new Date(r.dataPagamento)) : new Date(r.vencimento); const dataPagBR = new Date(dataPag.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' })); if (dataPagBR.getMonth() === mesAtual && dataPagBR.getFullYear() === anoAtual) receitaRecebidaMes += r.valor; }
+      else if (r.status === "Pendente" || r.status === "Em Aberto") { totalAberto += r.valor; abertoQtd++; }
+      else if (r.status === "Atrasado" || r.status === "Vencido") { receitaAtraso += r.valor; valorInadimplente += r.valor; }
     });
-
-    mensalidadeSnapshot.forEach((doc) => {
-      const mens = doc.data();
-      if (mens.status === "Pago") {
-        totalRecebido += mens.valor;
-        recebidoQtd++;
-        const dataPagamento = new Date(mens.dataPagamento || mens.vencimento);
-        if (dataPagamento.getMonth() === mesAtual && dataPagamento.getFullYear() === anoAtual) {
-          receitaRecebidaMes += mens.valor;
-        }
-      } else if (mens.status === "Em Aberto") {
-        totalAberto += mens.valor;
-        abertoQtd++;
-        const dataVencimento = new Date(mens.vencimento);
-        if (dataVencimento < dataAtual) {
-          totalVencido += mens.valor;
-          vencidoQtd++;
-          receitaAtraso += mens.valor;
-        }
-      } else if (mens.status === "Atrasado") {
-        totalVencido += mens.valor;
-        valorInadimplente += mens.valor;
-        vencidoQtd++;
-        receitaAtraso += mens.valor;
-      }
+    mSnap.forEach(doc => {
+      const m = doc.data();
+      if (statusRecebido.includes(m.status)) { totalRecebido += m.valor; recebidoQtd++; const dataPag = m.dataPagamento ? (m.dataPagamento.toDate ? m.dataPagamento.toDate() : new Date(m.dataPagamento)) : new Date(m.vencimento); const dataPagBR = new Date(dataPag.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' })); if (dataPagBR.getMonth() === mesAtual && dataPagBR.getFullYear() === anoAtual) receitaRecebidaMes += m.valor; }
+      else if (m.status === "Em Aberto") { totalAberto += m.valor; abertoQtd++; const dataVenc = new Date(m.vencimento); if (dataVenc < dataBrasil) { receitaAtraso += m.valor; valorInadimplente += m.valor; } }
+      else if (m.status === "Atrasado" || m.status === "Vencido") { receitaAtraso += m.valor; valorInadimplente += m.valor; }
     });
-
-    despSnapshot.forEach((doc) => {
-      const desp = doc.data();
-      if (desp.status === "Pago") {
-        totalDespesas += desp.valor;
-      } else {
-        despesasQtd++;
-      }
-    });
-
+    dSnap.forEach(doc => { const d = doc.data(); if (d.status === "Pago") totalDespesas += d.valor; else despesasQtd++; });
     const lucroLiquido = totalRecebido - totalDespesas;
-
-    const setText = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.innerText = val;
-    };
-
-    setText("faturamentoMes", "R$ " + faturamentoMes.toFixed(2));
-    setText("totalRecebido", "R$ " + totalRecebido.toFixed(2));
-    setText("totalAberto", "R$ " + totalAberto.toFixed(2));
-    setText("totalDespesas", "R$ " + totalDespesas.toFixed(2));
-    setText("lucroLiquido", "R$ " + lucroLiquido.toFixed(2));
-    setText("totalInadimplentes", String(clientesInadimplentes));
-    setText("valorInadimplentes", "R$ " + valorInadimplente.toFixed(2) + " em atraso");
-    setText("recebidoQtd", recebidoQtd + " cobranças pagas");
-    setText("abertoQtd", abertoQtd + " cobranças pendentes");
-    setText("despesasQtd", despesasQtd + " despesas este mês");
-    setText("receitaRecebidaMes", "R$ " + receitaRecebidaMes.toFixed(2));
-    setText("receitaAnualProjetada", "R$ " + receitaAnualProjetada.toFixed(2));
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    setText("faturamentoMes", "R$ " + faturamentoMes.toFixed(2)); setText("totalRecebido", "R$ " + totalRecebido.toFixed(2));
+    setText("totalAberto", "R$ " + totalAberto.toFixed(2)); setText("totalDespesas", "R$ " + totalDespesas.toFixed(2));
+    setText("lucroLiquido", "R$ " + lucroLiquido.toFixed(2)); setText("totalInadimplentes", String(clientesInadimplentes));
+    setText("valorInadimplentes", "R$ " + valorInadimplente.toFixed(2) + " em atraso"); setText("recebidoQtd", recebidoQtd + " pagas");
+    setText("abertoQtd", abertoQtd + " pendentes"); setText("despesasQtd", despesasQtd + " este mês");
+    setText("receitaRecebidaMes", "R$ " + receitaRecebidaMes.toFixed(2)); setText("receitaAnualProjetada", "R$ " + receitaAnualProjetada.toFixed(2));
     setText("receitaAtraso", "R$ " + receitaAtraso.toFixed(2));
-
     carregarInadimplentes();
-  }).catch((erro) => {
-    console.error("Erro ao carregar financeiro:", erro);
-  });
+  }).catch(e => console.error("Erro financeiro:", e));
 }
 
 // ===========================
-// FINANCEIRO - INADIMPLÊNCIA
+// INADIMPLÊNCIA
 // ===========================
 
 function carregarInadimplentes() {
   const tabela = document.getElementById("listaInadimplentes");
   if (!tabela) return;
   tabela.innerHTML = "";
-
-  let totalInadimplentes = 0;
-  let valorTotal = 0;
-  const clientesUnicos = new Set();
-  const receitasAtraso = [];
-  let dadosCarregados = 0;
-  const totalEsperado = 2; // mensalidades + recebimentos
-
-  // Limpar listeners antigos
+  let total = 0, valorTotal = 0; const clientesUnicos = new Set(); const receitasAtraso = [];
+  let dados = 0; const esperado = 2;
   if (inadimplentesMensalidadesListener) inadimplentesMensalidadesListener();
   if (inadimplentesRecebimentosListener) inadimplentesRecebimentosListener();
-
-  function atualizarIndicadores() {
-    const qntEl = document.getElementById("qntInadimplentes");
-    const valorEl = document.getElementById("valorTotalAtraso");
-    const ticketEl = document.getElementById("ticketMedioAtraso");
-    if (qntEl) qntEl.innerText = clientesUnicos.size;
-    if (valorEl) valorEl.innerText = "R$ " + valorTotal.toFixed(2);
-    if (ticketEl) {
-      ticketEl.innerText = "R$ " + (totalInadimplentes > 0 ? (valorTotal / totalInadimplentes).toFixed(2) : "0.00");
-    }
+  function atualizar() {
+    document.getElementById("qntInadimplentes").innerText = clientesUnicos.size;
+    document.getElementById("valorTotalAtraso").innerText = "R$ " + valorTotal.toFixed(2);
+    document.getElementById("ticketMedioAtraso").innerText = "R$ " + (total > 0 ? (valorTotal / total).toFixed(2) : "0.00");
     atualizarTabelaReceitaAtraso(receitasAtraso);
   }
-
-  // Mensalidades atrasadas
-  inadimplentesMensalidadesListener = db.collection("mensalidades")
-    .where("tenantId", "==", getTenantId())
-    .where("status", "==", "Atrasado")
-    .onSnapshot((mensalidadeSnapshot) => {
-      mensalidadeSnapshot.forEach((doc) => {
-        const mens = doc.data();
-        totalInadimplentes++;
-        valorTotal += mens.valor;
-        clientesUnicos.add(mens.clienteId);
-
-        const dataAtrasada = new Date(mens.vencimento);
-        const dataHoje = new Date();
-        const diasAtraso = Math.floor((dataHoje - dataAtrasada) / (1000 * 60 * 60 * 24));
-
-        tabela.innerHTML += `
-          <tr>
-            <td>${mens.clienteNome}</td>
-            <td>R$ ${mens.valor.toFixed(2)}</td>
-            <td>${mens.vencimento}</td>
-            <td>${diasAtraso} dias</td>
-            <td>Mensalidade</td>
-            <td>
-              <button onclick="enviarWhatsAppInadimplente('${mens.clienteNome}', '${mens.valor}', '${mens.vencimento}')" style="background: #25D366; margin-right: 5px;">
-                <i class="fab fa-whatsapp"></i>
-              </button>
-              <button onclick="marcarMensalidadePaga('${doc.id}')">
-                <i class="fas fa-check"></i> Marcar Pago
-              </button>
-            </td>
-          </tr>
-        `;
-
-        receitasAtraso.push({
-          clienteNome: mens.clienteNome,
-          valor: mens.valor,
-          vencimento: mens.vencimento,
-          diasAtraso: diasAtraso,
-          tipo: 'Mensalidade',
-          id: doc.id,
-          telefone: null
-        });
-      });
-      dadosCarregados++;
-      if (dadosCarregados >= totalEsperado) atualizarIndicadores();
-    }, (erro) => {
-      console.error("Erro ao carregar mensalidades atrasadas:", erro);
-      dadosCarregados++;
-      if (dadosCarregados >= totalEsperado) atualizarIndicadores();
-    });
-
-  // Recebimentos manuais atrasados
-  inadimplentesRecebimentosListener = db.collection("recebimentos")
-    .where("tenantId", "==", getTenantId())
-    .where("status", "==", "Atrasado")
-    .onSnapshot((snapshot) => {
-      let processados = 0;
-      const totalProcessar = snapshot.size;
-
-      if (totalProcessar === 0) {
-        dadosCarregados++;
-        if (dadosCarregados >= totalEsperado) atualizarIndicadores();
-        return;
-      }
-
-      snapshot.forEach((doc) => {
-        const receb = doc.data();
-        totalInadimplentes++;
-        valorTotal += receb.valor;
-        clientesUnicos.add(receb.clienteId);
-
-        db.collection("clientes")
-          .doc(receb.clienteId)
-          .get()
-          .then((clienteDoc) => {
-            if (clienteDoc.exists) {
-              const cliente = clienteDoc.data();
-              const dataAtrasada = new Date(receb.vencimento);
-              const dataHoje = new Date();
-              const diasAtraso = Math.floor((dataHoje - dataAtrasada) / (1000 * 60 * 60 * 24));
-
-              tabela.innerHTML += `
-                <tr>
-                  <td>${cliente.nome}</td>
-                  <td>R$ ${receb.valor.toFixed(2)}</td>
-                  <td>${receb.vencimento}</td>
-                  <td>${diasAtraso} dias</td>
-                  <td>${cliente.telefone}</td>
-                  <td>
-                    <button onclick="enviarWhatsAppInadimplente('${cliente.nome}', '${receb.valor}', '${receb.vencimento}', '${cliente.telefone}')" style="background: #25D366; margin-right: 5px;">
-                      <i class="fab fa-whatsapp"></i>
-                    </button>
-                    <button onclick="marcarComoPago('${doc.id}')">
-                      <i class="fas fa-check"></i> Marcar Pago
-                    </button>
-                  </td>
-                </tr>
-              `;
-
-              receitasAtraso.push({
-                clienteNome: cliente.nome,
-                valor: receb.valor,
-                vencimento: receb.vencimento,
-                diasAtraso: diasAtraso,
-                tipo: 'Manual',
-                id: doc.id,
-                telefone: cliente.telefone
-              });
-            }
-            processados++;
-            if (processados >= totalProcessar) {
-              dadosCarregados++;
-              if (dadosCarregados >= totalEsperado) atualizarIndicadores();
-            }
-          })
-          .catch(() => {
-            processados++;
-            if (processados >= totalProcessar) {
-              dadosCarregados++;
-              if (dadosCarregados >= totalEsperado) atualizarIndicadores();
-            }
-          });
-      });
-    }, (erro) => {
-      console.error("Erro ao carregar inadimplentes:", erro);
-      dadosCarregados++;
-      if (dadosCarregados >= totalEsperado) atualizarIndicadores();
-    });
+  inadimplentesMensalidadesListener = db.collection("mensalidades").where("tenantId", "==", getTenantId()).where("status", "==", "Atrasado").onSnapshot((snap) => {
+    snap.forEach(doc => { const m = doc.data(); total++; valorTotal += m.valor; clientesUnicos.add(m.clienteId); const dias = Math.floor((new Date() - new Date(m.vencimento)) / (1000*60*60*24)); tabela.innerHTML += `<tr><td>${m.clienteNome}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td>${dias} dias</td><td>Mensalidade</td><td><div class="action-buttons"><button class="btn-action btn-action-whatsapp" onclick="enviarWhatsAppInadimplente('${m.clienteNome}','${m.valor}','${m.vencimento}')" title="WhatsApp"><i class="fab fa-whatsapp"></i><span class="tooltip-text">WhatsApp</span></button><button class="btn-action btn-action-success" onclick="marcarMensalidadePaga('${doc.id}')" title="Pago"><i class="fas fa-check"></i><span class="tooltip-text">Pagar</span></button></div></td></tr>`; receitasAtraso.push({ clienteNome: m.clienteNome, valor: m.valor, vencimento: m.vencimento, diasAtraso: dias, tipo: 'Mensalidade', id: doc.id, telefone: null }); }); dados++; if (dados >= esperado) atualizar();
+  }, () => { dados++; if (dados >= esperado) atualizar(); });
+  inadimplentesRecebimentosListener = db.collection("recebimentos").where("tenantId", "==", getTenantId()).where("status", "==", "Atrasado").onSnapshot((snap) => {
+    let proc = 0; const totalProc = snap.size;
+    if (totalProc === 0) { dados++; if (dados >= esperado) atualizar(); return; }
+    snap.forEach(doc => { const r = doc.data(); total++; valorTotal += r.valor; clientesUnicos.add(r.clienteId); db.collection("clientes").doc(r.clienteId).get().then(cDoc => { if (cDoc.exists) { const c = cDoc.data(); const dias = Math.floor((new Date() - new Date(r.vencimento)) / (1000*60*60*24)); tabela.innerHTML += `<tr><td>${c.nome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td>${dias} dias</td><td>${c.telefone}</td><td><div class="action-buttons"><button class="btn-action btn-action-whatsapp" onclick="enviarWhatsAppInadimplente('${c.nome}','${r.valor}','${r.vencimento}','${c.telefone}')" title="WhatsApp"><i class="fab fa-whatsapp"></i><span class="tooltip-text">WhatsApp</span></button><button class="btn-action btn-action-success" onclick="marcarComoPago('${doc.id}')" title="Pago"><i class="fas fa-check"></i><span class="tooltip-text">Pagar</span></button></div></td></tr>`; receitasAtraso.push({ clienteNome: c.nome, valor: r.valor, vencimento: r.vencimento, diasAtraso: dias, tipo: 'Manual', id: doc.id, telefone: c.telefone }); } proc++; if (proc >= totalProc) { dados++; if (dados >= esperado) atualizar(); } }).catch(() => { proc++; if (proc >= totalProc) { dados++; if (dados >= esperado) atualizar(); } }); });
+  }, () => { dados++; if (dados >= esperado) atualizar(); });
 }
 
-function atualizarTabelaReceitaAtraso(receitasAtraso) {
+function atualizarTabelaReceitaAtraso(receitas) {
   const tabela = document.getElementById("listaReceitaAtraso");
   if (!tabela) return;
-
-  if (receitasAtraso.length === 0) {
-    tabela.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align: center; color: var(--text-muted);">
-          Nenhum registro em atraso
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
+  if (receitas.length === 0) { tabela.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;"><i class="fas fa-check-circle" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.5;"></i>Nenhum registro em atraso</td></tr>`; return; }
   tabela.innerHTML = "";
-  receitasAtraso.sort((a, b) => b.diasAtraso - a.diasAtraso);
-
-  receitasAtraso.forEach((receita) => {
-    const telefoneFormatado = receita.telefone ? receita.telefone.replace(/\D/g, '') : '';
-    const whatsappLink = telefoneFormatado ? `https://wa.me/55${telefoneFormatado}` : '#';
-
-    tabela.innerHTML += `
-      <tr>
-        <td>${receita.clienteNome}</td>
-        <td>R$ ${receita.valor.toFixed(2)}</td>
-        <td>${receita.vencimento}</td>
-        <td><span style="color: var(--danger); font-weight: 600;">${receita.diasAtraso} dias</span></td>
-        <td>
-          <a href="${whatsappLink}" target="_blank" class="btn-premium" style="padding: 6px 12px; font-size: 12px; text-decoration: none; display: inline-block;">
-            <i class="fab fa-whatsapp"></i> WhatsApp
-          </a>
-        </td>
-        <td>
-          <button class="btn-premium" onclick="enviarCobranca('${receita.clienteNome}', '${receita.valor}', '${receita.vencimento}', '${receita.diasAtraso}')" style="padding: 6px 12px; font-size: 12px;">
-            <i class="fas fa-envelope"></i> Cobrar
-          </button>
-        </td>
-      </tr>
-    `;
+  receitas.sort((a,b) => b.diasAtraso - a.diasAtraso).forEach(r => {
+    const tel = r.telefone ? r.telefone.replace(/\D/g,'') : '';
+    tabela.innerHTML += `<tr><td>${r.clienteNome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td><span style="color:var(--danger);font-weight:600;">${r.diasAtraso} dias</span></td><td>${tel ? `<a href="https://wa.me/55${tel}" target="_blank" class="btn-premium" style="padding:6px 12px;font-size:12px;text-decoration:none;display:inline-block;"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}</td><td><button class="btn-premium" onclick="enviarCobranca('${r.clienteNome}','${r.valor}','${r.vencimento}','${r.diasAtraso}')" style="padding:6px 12px;font-size:12px;"><i class="fas fa-envelope"></i> Cobrar</button></td></tr>`;
   });
 }
 
-function enviarCobranca(clienteNome, valor, vencimento, diasAtraso) {
-  const mensagem = `Olá ${clienteNome},\n\nGostaríamos de lembrar que você tem uma cobrança de R$ ${Number(valor).toFixed(2)} em atraso há ${diasAtraso} dias (vencimento: ${vencimento}).\n\nPor favor, entre em contato para regularizar sua situação.\n\nObrigado!`;
+function enviarWhatsAppInadimplente(nome, valor, vencimento, telefone) {
+  if (!telefone) { db.collection("clientes").where("nome","==",nome).where("tenantId","==",getTenantId()).limit(1).get().then(snap => { if (!snap.empty) abrirWhatsApp(snap.docs[0].data().telefone, nome, valor, vencimento); else showToast("Cliente não encontrado.", "error"); }).catch(e => showToast("Erro: " + e.message, "error")); }
+  else abrirWhatsApp(telefone, nome, valor, vencimento);
+}
 
-  navigator.clipboard.writeText(mensagem).then(() => {
-    alert("Mensagem de cobrança copiada para a área de transferência!\n\nCole no WhatsApp para enviar.");
-  }).catch((erro) => {
-    console.error("Erro ao copiar mensagem:", erro);
-    alert("Erro ao copiar mensagem. Tente novamente.");
-  });
+function abrirWhatsApp(telefone, nome, valor, vencimento) {
+  const tel = telefone.replace(/\D/g,'');
+  const msg = encodeURIComponent(`Olá, ${nome}!\n\nIdentificamos uma mensalidade em aberto no valor de R$ ${valor}, vencida em ${vencimento}.\n\nCaso já tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\nControlISP`);
+  window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
+}
+
+function enviarCobranca(nome, valor, vencimento, dias) {
+  const msg = `Olá ${nome},\n\nVocê tem uma cobrança de R$ ${Number(valor).toFixed(2)} em atraso há ${dias} dias (vencimento: ${vencimento}).\n\nPor favor, entre em contato para regularizar.\n\nObrigado!`;
+  navigator.clipboard.writeText(msg).then(() => showToast("Mensagem copiada!", "success")).catch(() => showToast("Erro ao copiar.", "error"));
 }
 
 function marcarComoPago(id) {
-  db.collection("recebimentos")
-    .doc(id)
-    .update(secureUpdate({ status: "Pago" }))
-    .then(() => {
-      alert("Marcado como pago!");
-      carregarInadimplentes();
-      carregarFinanceiro();
-    })
-    .catch((erro) => {
-      alert("Erro: " + erro.message);
-    });
+  db.collection("recebimentos").doc(id).update(secureUpdate({ status: "Pago" })).then(() => { showToast("Marcado como pago!", "success"); carregarInadimplentes(); carregarFinanceiro(); carregarDashboardPremium(); }).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
 // ===========================
-// MODALS FUNCTIONS
+// TAB NAVIGATION
 // ===========================
 
-function mostrarAbaFinanceira(aba) {
-  document.querySelectorAll(".abaFinanceira").forEach(abaf => {
-    abaf.style.display = "none";
-    abaf.classList.remove("ativa");
-  });
-
-  const abaElement = document.getElementById(aba);
-  if (abaElement) {
-    abaElement.style.display = "block";
-    abaElement.classList.add("ativa");
-  }
-
-  document.querySelectorAll(".tabBtn").forEach(btn => {
-    btn.classList.remove("active");
-    if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) {
-      btn.classList.add("active");
-    }
-  });
-
-  if (aba === "fluxo-caixa") {
-    atualizarFluxoCaixa();
-  }
+function mostrarAbaFinanceira(aba, event) {
+  document.querySelectorAll(".abaFinanceira").forEach(a => { a.style.display = "none"; a.classList.remove("ativa"); });
+  const el = document.getElementById(aba);
+  if (el) { el.style.display = "block"; el.classList.add("ativa"); }
+  document.querySelectorAll(".tabBtn").forEach(btn => { btn.classList.remove("active"); if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) btn.classList.add("active"); });
+  if (aba === "fluxo-caixa") atualizarFluxoCaixa();
 }
-
-// ===========================
-// LOGOUT & AUTH - UNIFIED LISTENER
-// ===========================
 
 function logout() {
-  auth.signOut()
-    .then(() => {
-      location.reload();
-    })
-    .catch((erro) => {
-      alert(erro.message);
-    });
+  auth.signOut().then(() => location.reload()).catch(e => showToast(e.message, "error"));
 }
 
 // ===========================
-// WHATSAPP MODULE
+// WHATSAPP
 // ===========================
 
-let clientesWhatsApp = [];
-let clientesSelecionadosWhatsApp = new Set();
-let configuracoesWhatsApp = {
-  templates: {},
-  nomeEmpresa: "Sua Empresa",
-  apiProvider: "",
-  apiKey: "",
-  apiUrl: ""
-};
-
-let usuarioEditando = null;
-
-// ===========================
-// WHATSAPP TAB NAVIGATION
-// ===========================
-
-function mostrarAbaWhatsApp(aba) {
-  document.querySelectorAll(".abaWhatsApp").forEach(abaw => {
-    abaw.style.display = "none";
-    abaw.classList.remove("ativa");
-  });
-
-  const abaElement = document.getElementById("whatsapp-" + aba);
-  if (abaElement) {
-    abaElement.style.display = "block";
-    abaElement.classList.add("ativa");
-  }
-
-  document.querySelectorAll(".whatsappTabBtn").forEach(btn => {
-    btn.classList.remove("active");
-    if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) {
-      btn.classList.add("active");
-    }
-  });
-
-  if (aba === "cobrancas") {
-    identificarCobrancasPendentes();
-  }
+function mostrarAbaWhatsApp(aba, event) {
+  document.querySelectorAll(".abaWhatsApp").forEach(a => { a.style.display = "none"; a.classList.remove("ativa"); });
+  const el = document.getElementById("whatsapp-" + aba);
+  if (el) { el.style.display = "block"; el.classList.add("ativa"); }
+  document.querySelectorAll(".whatsappTabBtn").forEach(btn => { btn.classList.remove("active"); if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) btn.classList.add("active"); });
+  if (aba === "cobrancas") identificarCobrancasPendentes();
 }
-
-// ===========================
-// WHATSAPP CLIENT LOADING
-// ===========================
 
 function carregarClientesWhatsApp() {
   if (clientesWhatsAppListener) clientesWhatsAppListener();
-
-  clientesWhatsAppListener = db.collection("clientes")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("nome")
-    .onSnapshot((snapshot) => {
-      clientesWhatsApp = [];
-      const tabela = document.getElementById("listaClientesWhatsApp");
-      const selectIndividual = document.getElementById("wa_cliente_individual");
-      if (!tabela || !selectIndividual) return;
-
-      tabela.innerHTML = "";
-      selectIndividual.innerHTML = '<option value="">Selecione um cliente</option>';
-
-      snapshot.forEach((doc) => {
-        const cliente = doc.data();
-        cliente.id = doc.id;
-        clientesWhatsApp.push(cliente);
-
-        const option = document.createElement("option");
-        option.value = doc.id;
-        option.textContent = cliente.nome;
-        selectIndividual.appendChild(option);
-
-        tabela.innerHTML += `
-          <tr data-cliente-id="${doc.id}">
-            <td><input type="checkbox" class="wa-cliente-checkbox" value="${doc.id}"></td>
-            <td>${cliente.nome || ""}</td>
-            <td>${cliente.telefone || ""}</td>
-            <td>${cliente.status || ""}</td>
-            <td>${cliente.plano || ""}</td>
-            <td>${cliente.vencimento || ""}</td>
-            <td>R$ ${Number(cliente.valor || 0).toFixed(2)}</td>
-          </tr>
-        `;
-      });
-
-      filtrarClientesWhatsApp();
-    }, (erro) => {
-      console.error("Erro ao carregar clientes WhatsApp:", erro);
-    });
+  clientesWhatsAppListener = db.collection("clientes").where("tenantId","==",getTenantId()).orderBy("nome").onSnapshot(snap => {
+    clientesWhatsApp = [];
+    const tabela = document.getElementById("listaClientesWhatsApp");
+    const select = document.getElementById("wa_cliente_individual");
+    if (!tabela || !select) return;
+    tabela.innerHTML = "";
+    select.innerHTML = "<option value=''>Selecione um cliente</option>";
+    snap.forEach(doc => { const c = doc.data(); c.id = doc.id; clientesWhatsApp.push(c); const opt = document.createElement("option"); opt.value = doc.id; opt.textContent = c.nome; select.appendChild(opt); tabela.innerHTML += `<tr data-cliente-id="${doc.id}"><td><input type="checkbox" class="wa-cliente-checkbox" value="${doc.id}"></td><td>${c.nome||""}</td><td>${c.telefone||""}</td><td>${c.status||""}</td><td>${c.plano||""}</td><td>${c.vencimento||""}</td><td>R$ ${Number(c.valor||0).toFixed(2)}</td></tr>`; });
+    filtrarClientesWhatsApp();
+  }, e => console.error("Erro WhatsApp:", e));
 }
 
-// ===========================
-// WHATSAPP FILTERS
-// ===========================
-
 function filtrarClientesWhatsApp() {
-  const filtroStatus = document.getElementById("wa_filtro_status").value;
-  const filtroVencimento = document.getElementById("wa_filtro_vencimento").value;
-  const filtroNome = document.getElementById("wa_filtro_nome").value.toLowerCase();
-
-  const linhas = document.querySelectorAll("#listaClientesWhatsApp tr");
-  linhas.forEach((linha) => {
-    const clienteId = linha.getAttribute("data-cliente-id");
-    const cliente = clientesWhatsApp.find(c => c.id === clienteId);
-    if (!cliente) return;
-
+  const fStatus = document.getElementById("wa_filtro_status").value;
+  const fVenc = document.getElementById("wa_filtro_vencimento").value;
+  const fNome = document.getElementById("wa_filtro_nome").value.toLowerCase();
+  document.querySelectorAll("#listaClientesWhatsApp tr").forEach(linha => {
+    const id = linha.getAttribute("data-cliente-id");
+    const c = clientesWhatsApp.find(x => x.id === id);
+    if (!c) return;
     let mostrar = true;
-
-    if (filtroStatus && cliente.status !== filtroStatus) mostrar = false;
-    if (filtroNome && !cliente.nome.toLowerCase().includes(filtroNome)) mostrar = false;
-
-    if (filtroVencimento) {
-      const dataAtual = new Date();
-      const diaVencimento = parseInt(cliente.vencimento);
-
-      if (filtroVencimento === "hoje") {
-        if (dataAtual.getDate() !== diaVencimento) mostrar = false;
-      } else if (filtroVencimento === "3dias") {
-        const diasAteVencimento = diaVencimento - dataAtual.getDate();
-        if (diasAteVencimento < 0 || diasAteVencimento > 3) mostrar = false;
-      } else if (filtroVencimento === "7dias") {
-        const diasAteVencimento = diaVencimento - dataAtual.getDate();
-        if (diasAteVencimento < 0 || diasAteVencimento > 7) mostrar = false;
-      } else if (filtroVencimento === "atrasado") {
-        const diasAteVencimento = diaVencimento - dataAtual.getDate();
-        if (diasAteVencimento >= 0) mostrar = false;
-      }
-    }
-
+    if (fStatus && c.status !== fStatus) mostrar = false;
+    if (fNome && !c.nome.toLowerCase().includes(fNome)) mostrar = false;
+    if (fVenc) { const hoje = new Date().getDate(); const dia = parseInt(c.vencimento); if (fVenc === "hoje" && hoje !== dia) mostrar = false; if (fVenc === "3dias" && (dia - hoje < 0 || dia - hoje > 3)) mostrar = false; if (fVenc === "7dias" && (dia - hoje < 0 || dia - hoje > 7)) mostrar = false; if (fVenc === "atrasado" && dia - hoje >= 0) mostrar = false; }
     linha.style.display = mostrar ? "" : "none";
   });
 }
 
-// ===========================
-// WHATSAPP SELECTION
-// ===========================
-
 function toggleSelectAllWhatsApp() {
-  const selectAll = document.getElementById("wa_select_all").checked;
-  const checkboxes = document.querySelectorAll(".wa-cliente-checkbox");
-
-  checkboxes.forEach((checkbox) => {
-    checkbox.checked = selectAll;
-    if (selectAll) {
-      clientesSelecionadosWhatsApp.add(checkbox.value);
-    } else {
-      clientesSelecionadosWhatsApp.delete(checkbox.value);
-    }
-  });
+  const checked = document.getElementById("wa_select_all").checked;
+  document.querySelectorAll(".wa-cliente-checkbox").forEach(cb => { cb.checked = checked; checked ? clientesSelecionadosWhatsApp.add(cb.value) : clientesSelecionadosWhatsApp.delete(cb.value); });
 }
 
 function selecionarTodosWhatsApp() {
-  const checkboxes = document.querySelectorAll(".wa-cliente-checkbox");
-  checkboxes.forEach((checkbox) => {
-    checkbox.checked = true;
-    clientesSelecionadosWhatsApp.add(checkbox.value);
-  });
-  const selectAllEl = document.getElementById("wa_select_all");
-  if (selectAllEl) selectAllEl.checked = true;
+  document.querySelectorAll(".wa-cliente-checkbox").forEach(cb => { cb.checked = true; clientesSelecionadosWhatsApp.add(cb.value); });
+  const el = document.getElementById("wa_select_all");
+  if (el) el.checked = true;
 }
 
-// ===========================
-// WHATSAPP TEMPLATES
-// ===========================
-
-function carregarTemplate(tipo) {
-  const templateId = "wa_template_" + tipo;
-  const textarea = document.getElementById(templateId);
-  if (textarea && configuracoesWhatsApp.templates[tipo]) {
-    textarea.value = configuracoesWhatsApp.templates[tipo];
-  }
-}
+function carregarTemplate(tipo) { const ta = document.getElementById("wa_template_" + tipo); if (ta && configuracoesWhatsApp.templates[tipo]) ta.value = configuracoesWhatsApp.templates[tipo]; }
 
 function salvarTemplate(tipo) {
-  const templateId = "wa_template_" + tipo;
-  const textarea = document.getElementById(templateId);
-  if (textarea) {
-    configuracoesWhatsApp.templates[tipo] = textarea.value;
-    db.collection("configuracoes")
-      .doc("whatsapp")
-      .set({
-        templates: configuracoesWhatsApp.templates,
-        updatedAt: new Date()
-      }, { merge: true })
-      .then(() => alert("Modelo salvo com sucesso!"))
-      .catch((erro) => alert("Erro ao salvar modelo: " + erro.message));
-  }
+  const ta = document.getElementById("wa_template_" + tipo);
+  if (ta) { configuracoesWhatsApp.templates[tipo] = ta.value; db.collection("configuracoes").doc("whatsapp").set({ templates: configuracoesWhatsApp.templates, updatedAt: new Date() }, { merge: true }).then(() => showToast("Modelo salvo!", "success")).catch(e => showToast("Erro: " + e.message, "error")); }
 }
 
 function salvarNomeEmpresa() {
-  const nomeEmpresa = document.getElementById("wa_nome_empresa").value;
-  configuracoesWhatsApp.nomeEmpresa = nomeEmpresa;
-  db.collection("configuracoes")
-    .doc("whatsapp")
-    .set({ nomeEmpresa: nomeEmpresa, updatedAt: new Date() }, { merge: true })
-    .then(() => alert("Nome da empresa salvo com sucesso!"))
-    .catch((erro) => alert("Erro ao salvar nome: " + erro.message));
+  const nome = document.getElementById("wa_nome_empresa").value;
+  configuracoesWhatsApp.nomeEmpresa = nome;
+  db.collection("configuracoes").doc("whatsapp").set({ nomeEmpresa: nome, updatedAt: new Date() }, { merge: true }).then(() => showToast("Nome salvo!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
 function salvarConfiguracaoAPI() {
-  const apiProvider = document.getElementById("wa_api_provider").value;
-  const apiKey = document.getElementById("wa_api_key").value;
-  const apiUrl = document.getElementById("wa_api_url").value;
-
-  configuracoesWhatsApp.apiProvider = apiProvider;
-  configuracoesWhatsApp.apiKey = apiKey;
-  configuracoesWhatsApp.apiUrl = apiUrl;
-
-  db.collection("configuracoes")
-    .doc("whatsapp")
-    .set({ apiProvider, apiKey, apiUrl, updatedAt: new Date() }, { merge: true })
-    .then(() => alert("Configuração de API salva com sucesso!"))
-    .catch((erro) => alert("Erro ao salvar configuração: " + erro.message));
+  const apiProvider = document.getElementById("wa_api_provider").value; const apiKey = document.getElementById("wa_api_key").value; const apiUrl = document.getElementById("wa_api_url").value;
+  configuracoesWhatsApp.apiProvider = apiProvider; configuracoesWhatsApp.apiKey = apiKey; configuracoesWhatsApp.apiUrl = apiUrl;
+  db.collection("configuracoes").doc("whatsapp").set({ apiProvider, apiKey, apiUrl, updatedAt: new Date() }, { merge: true }).then(() => showToast("Configuração salva!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
-// ===========================
-// WHATSAPP MESSAGE VARIABLES
-// ===========================
-
-function substituirVariaveis(mensagem, cliente, valor, vencimento) {
-  let mensagemProcessada = mensagem;
-  mensagemProcessada = mensagemProcessada.replace(/{nome_cliente}/g, cliente.nome || "");
-  mensagemProcessada = mensagemProcessada.replace(/{valor}/g, "R$ " + Number(valor || 0).toFixed(2));
-  mensagemProcessada = mensagemProcessada.replace(/{vencimento}/g, vencimento || "");
-  mensagemProcessada = mensagemProcessada.replace(/{plano}/g, cliente.plano || "");
-  mensagemProcessada = mensagemProcessada.replace(/{empresa}/g, configuracoesWhatsApp.nomeEmpresa || "Sua Empresa");
-  mensagemProcessada = mensagemProcessada.replace(/{telefone}/g, cliente.telefone || "");
-  return mensagemProcessada;
+function substituirVariaveis(msg, cliente, valor, vencimento) {
+  return msg.replace(/{nome_cliente}/g, cliente.nome || "").replace(/{valor}/g, "R$ " + Number(valor||0).toFixed(2)).replace(/{vencimento}/g, vencimento || "").replace(/{plano}/g, cliente.plano || "").replace(/{empresa}/g, configuracoesWhatsApp.nomeEmpresa || "Sua Empresa").replace(/{telefone}/g, cliente.telefone || "");
 }
 
-function carregarTemplateNaTextarea(tipo, textareaId) {
-  let template = "";
-  const tipos = ["aviso_vencimento", "cobranca_vencimento", "cobranca_atraso", "cobranca_amigavel"];
-  if (tipos.includes(tipo) && configuracoesWhatsApp.templates[tipo]) {
-    template = configuracoesWhatsApp.templates[tipo];
-  }
-  if (template) {
-    const ta = document.getElementById(textareaId);
-    if (ta) ta.value = template;
-  }
-}
-
-// ===========================
-// WHATSAPP INDIVIDUAL MESSAGE
-// ===========================
+function carregarTemplateNaTextarea(tipo, textareaId) { const ta = document.getElementById(textareaId); if (ta && configuracoesWhatsApp.templates[tipo]) ta.value = configuracoesWhatsApp.templates[tipo]; }
 
 function enviarMensagemIndividual() {
-  const clienteId = document.getElementById("wa_cliente_individual").value;
-  const templateTipo = document.getElementById("wa_template_individual").value;
-  const mensagemCustomizada = document.getElementById("wa_mensagem_individual").value;
-
-  if (!clienteId) { alert("Selecione um cliente!"); return; }
+  const clienteId = document.getElementById("wa_cliente_individual").value; const templateTipo = document.getElementById("wa_template_individual").value; const msgCustom = document.getElementById("wa_mensagem_individual").value;
+  if (!clienteId) { showToast("Selecione um cliente!", "warning"); return; }
   const cliente = clientesWhatsApp.find(c => c.id === clienteId);
-  if (!cliente) { alert("Cliente não encontrado!"); return; }
-  if (!cliente.telefone) { alert("Cliente não possui telefone cadastrado!"); return; }
-
-  let mensagem = "";
-  let tipoMensagem = templateTipo === "personalizado" ? "personalizado" : templateTipo;
-
-  if (templateTipo === "personalizado") {
-    mensagem = mensagemCustomizada;
-  } else {
-    const template = configuracoesWhatsApp.templates[templateTipo] || "";
-    const vencimento = formatarDataVencimento(cliente.vencimento);
-    mensagem = substituirVariaveis(template, cliente, cliente.valor, vencimento);
-  }
-
-  if (!mensagem) { alert("Digite uma mensagem ou selecione um modelo!"); return; }
-
-  const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
-  const mensagemCodificada = encodeURIComponent(mensagem);
-  const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
-
-  salvarHistoricoWhatsApp(cliente, mensagem, tipoMensagem, "Enviado");
-  window.open(whatsappURL, "_blank");
+  if (!cliente) { showToast("Cliente não encontrado!", "error"); return; }
+  if (!cliente.telefone) { showToast("Cliente sem telefone!", "warning"); return; }
+  let mensagem = "", tipoMsg = templateTipo;
+  if (templateTipo === "personalizado") mensagem = msgCustom;
+  else { const template = configuracoesWhatsApp.templates[templateTipo] || ""; mensagem = substituirVariaveis(template, cliente, cliente.valor, formatarDataVencimento(cliente.vencimento)); }
+  if (!mensagem) { showToast("Digite uma mensagem!", "warning"); return; }
+  const tel = formatarTelefoneWhatsApp(cliente.telefone);
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensagem)}`, '_blank');
+  salvarHistoricoWhatsApp(cliente, mensagem, tipoMsg, "Enviado");
 }
-
-// ===========================
-// WHATSAPP BULK MESSAGE
-// ===========================
 
 function enviarMensagemMassa() {
-  const templateTipo = document.getElementById("wa_template_massa").value;
-  const mensagemCustomizada = document.getElementById("wa_mensagem_massa").value;
-
-  if (clientesSelecionadosWhatsApp.size === 0) { alert("Selecione pelo menos um cliente!"); return; }
-
-  let tipoMensagem = templateTipo === "personalizado" ? "personalizado" : templateTipo;
-  let templateBase = "";
-  if (templateTipo === "personalizado") {
-    templateBase = mensagemCustomizada;
-  } else {
-    templateBase = configuracoesWhatsApp.templates[templateTipo] || "";
-  }
-  if (!templateBase) { alert("Digite uma mensagem ou selecione um modelo!"); return; }
-
-  let contador = 0;
-  clientesSelecionadosWhatsApp.forEach((clienteId) => {
-    const cliente = clientesWhatsApp.find(c => c.id === clienteId);
-    if (cliente && cliente.telefone) {
-      const vencimento = formatarDataVencimento(cliente.vencimento);
-      const mensagem = substituirVariaveis(templateBase, cliente, cliente.valor, vencimento);
-      salvarHistoricoWhatsApp(cliente, mensagem, tipoMensagem, "Enviado");
-      contador++;
-    }
-  });
-
-  alert(`${contador} mensagens preparadas! O WhatsApp será aberto para cada cliente.`);
-
-  clientesSelecionadosWhatsApp.forEach((clienteId) => {
-    const cliente = clientesWhatsApp.find(c => c.id === clienteId);
-    if (cliente && cliente.telefone) {
-      const vencimento = formatarDataVencimento(cliente.vencimento);
-      const mensagem = substituirVariaveis(templateBase, cliente, cliente.valor, vencimento);
-      const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
-      const mensagemCodificada = encodeURIComponent(mensagem);
-      const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
-      setTimeout(() => { window.open(whatsappURL, "_blank"); }, contador * 1000);
-    }
-  });
-
+  const templateTipo = document.getElementById("wa_template_massa").value; const msgCustom = document.getElementById("wa_mensagem_massa").value;
+  if (clientesSelecionadosWhatsApp.size === 0) { showToast("Selecione clientes!", "warning"); return; }
+  let tipoMsg = templateTipo === "personalizado" ? "personalizado" : templateTipo;
+  let template = templateTipo === "personalizado" ? msgCustom : (configuracoesWhatsApp.templates[templateTipo] || "");
+  if (!template) { showToast("Digite uma mensagem!", "warning"); return; }
+  let cont = 0;
+  clientesSelecionadosWhatsApp.forEach(id => { const c = clientesWhatsApp.find(x => x.id === id); if (c && c.telefone) { salvarHistoricoWhatsApp(c, substituirVariaveis(template, c, c.valor, formatarDataVencimento(c.vencimento)), tipoMsg, "Enviado"); cont++; } });
+  showToast(`${cont} mensagens preparadas!`, "success", "WhatsApp");
+  clientesSelecionadosWhatsApp.forEach((id, idx) => { const c = clientesWhatsApp.find(x => x.id === id); if (c && c.telefone) { const msg = substituirVariaveis(template, c, c.valor, formatarDataVencimento(c.vencimento)); setTimeout(() => window.open(`https://wa.me/${formatarTelefoneWhatsApp(c.telefone)}?text=${encodeURIComponent(msg)}`, '_blank'), idx * 1000); } });
   clientesSelecionadosWhatsApp.clear();
   document.querySelectorAll(".wa-cliente-checkbox").forEach(cb => cb.checked = false);
-  const selectAllEl = document.getElementById("wa_select_all");
-  if (selectAllEl) selectAllEl.checked = false;
+  const el = document.getElementById("wa_select_all");
+  if (el) el.checked = false;
 }
 
-// ===========================
-// WHATSAPP AUTOMATIC BILLING
-// ===========================
-
 function identificarCobrancasPendentes() {
-  const dataAtual = new Date();
-  let vencendoHoje = 0;
-  let vencendo3Dias = 0;
-  let vencendo7Dias = 0;
-  let emAtraso = 0;
-
+  const hoje = new Date(); let vencHoje = 0, venc3 = 0, venc7 = 0, atraso = 0;
   const tabela = document.getElementById("listaCobrancasWhatsApp");
-  if (!tabela) return;
-  tabela.innerHTML = "";
-
+  if (!tabela) return; tabela.innerHTML = "";
   if (cobrancasWhatsAppListener) cobrancasWhatsAppListener();
-
-  cobrancasWhatsAppListener = db.collection("mensalidades")
-    .where("tenantId", "==", getTenantId())
-    .where("status", "==", "Em Aberto")
-    .onSnapshot((snapshot) => {
-      tabela.innerHTML = "";
-      vencendoHoje = 0;
-      vencendo3Dias = 0;
-      vencendo7Dias = 0;
-      emAtraso = 0;
-
-      snapshot.forEach((doc) => {
-        const mens = doc.data();
-        const dataVencimento = new Date(mens.vencimento);
-        const diferencaDias = Math.floor((dataVencimento - dataAtual) / (1000 * 60 * 60 * 24));
-
-        let categoria = "";
-        if (diferencaDias === 0) { vencendoHoje++; categoria = "hoje"; }
-        else if (diferencaDias > 0 && diferencaDias <= 3) { vencendo3Dias++; categoria = "3dias"; }
-        else if (diferencaDias > 0 && diferencaDias <= 7) { vencendo7Dias++; categoria = "7dias"; }
-        else if (diferencaDias < 0) { emAtraso++; categoria = "atrasado"; }
-
-        if (categoria) {
-          const cliente = clientesWhatsApp.find(c => c.id === mens.clienteId);
-          if (cliente) {
-            tabela.innerHTML += `
-              <tr data-categoria="${categoria}">
-                <td>${mens.clienteNome}</td>
-                <td>${cliente.telefone || ""}</td>
-                <td>R$ ${mens.valor.toFixed(2)}</td>
-                <td>${mens.vencimento}</td>
-                <td>${diferencaDias} dias</td>
-                <td>${categoria}</td>
-                <td>
-                  <button onclick="enviarCobrancaIndividual('${doc.id}', '${categoria}')">
-                    <i class="fab fa-whatsapp"></i> Enviar
-                  </button>
-                </td>
-              </tr>
-            `;
-          }
-        }
-      });
-
-      const setText = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = String(val);
-      };
-      setText("wa_vencendo_hoje", vencendoHoje);
-      setText("wa_vencendo_3dias", vencendo3Dias);
-      setText("wa_vencendo_7dias", vencendo7Dias);
-      setText("wa_em_atraso", emAtraso);
-    }, (erro) => {
-      console.error("Erro ao identificar cobranças:", erro);
-    });
+  cobrancasWhatsAppListener = db.collection("mensalidades").where("tenantId","==",getTenantId()).where("status","==","Em Aberto").onSnapshot(snap => {
+    tabela.innerHTML = ""; vencHoje = 0; venc3 = 0; venc7 = 0; atraso = 0;
+    snap.forEach(doc => { const m = doc.data(); const diff = Math.floor((new Date(m.vencimento) - hoje) / (1000*60*60*24)); let cat = ""; if (diff === 0) { vencHoje++; cat = "hoje"; } else if (diff > 0 && diff <= 3) { venc3++; cat = "3dias"; } else if (diff > 0 && diff <= 7) { venc7++; cat = "7dias"; } else if (diff < 0) { atraso++; cat = "atrasado"; } if (cat) { const c = clientesWhatsApp.find(x => x.id === m.clienteId); if (c) { tabela.innerHTML += `<tr data-categoria="${cat}"><td>${m.clienteNome}</td><td>${c.telefone||""}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td>${diff} dias</td><td>${cat}</td><td><button onclick="enviarCobrancaIndividual('${doc.id}','${cat}')"><i class="fab fa-whatsapp"></i> Enviar</button></td></tr>`; } } });
+    document.getElementById("wa_vencendo_hoje").innerText = String(vencHoje);
+    document.getElementById("wa_vencendo_3dias").innerText = String(venc3);
+    document.getElementById("wa_vencendo_7dias").innerText = String(venc7);
+    document.getElementById("wa_em_atraso").innerText = String(atraso);
+  }, e => console.error("Erro cobranças:", e));
 }
 
 function enviarCobrancaIndividual(mensalidadeId, categoria) {
-  db.collection("mensalidades")
-    .doc(mensalidadeId)
-    .get()
-    .then((doc) => {
-      const mens = doc.data();
-      const cliente = clientesWhatsApp.find(c => c.id === mens.clienteId);
-      if (!cliente || !cliente.telefone) { alert("Cliente não encontrado ou sem telefone!"); return; }
-
-      let templateTipo = "";
-      if (categoria === "3dias") templateTipo = "aviso_vencimento";
-      else if (categoria === "hoje") templateTipo = "cobranca_vencimento";
-      else if (categoria === "atrasado") templateTipo = "cobranca_atraso";
-
-      const template = configuracoesWhatsApp.templates[templateTipo] || "";
-      const mensagem = substituirVariaveis(template, cliente, mens.valor, mens.vencimento);
-      salvarHistoricoWhatsApp(cliente, mensagem, templateTipo, "Enviado");
-
-      const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
-      const mensagemCodificada = encodeURIComponent(mensagem);
-      const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
-      window.open(whatsappURL, "_blank");
-    })
-    .catch((erro) => { alert("Erro: " + erro.message); });
+  db.collection("mensalidades").doc(mensalidadeId).get().then(doc => { const m = doc.data(); const c = clientesWhatsApp.find(x => x.id === m.clienteId); if (!c || !c.telefone) { showToast("Cliente sem telefone!", "warning"); return; } let tipo = ""; if (categoria === "3dias") tipo = "aviso_vencimento"; else if (categoria === "hoje") tipo = "cobranca_vencimento"; else if (categoria === "atrasado") tipo = "cobranca_atraso"; const template = configuracoesWhatsApp.templates[tipo] || ""; const msg = substituirVariaveis(template, c, m.valor, m.vencimento); salvarHistoricoWhatsApp(c, msg, tipo, "Enviado"); window.open(`https://wa.me/${formatarTelefoneWhatsApp(c.telefone)}?text=${encodeURIComponent(msg)}`, '_blank'); }).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
-function enviarAvisoVencimento3Dias() {
-  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='3dias']");
-  if (linhas.length === 0) { alert("Não há clientes vencendo em 3 dias!"); return; }
-  if (!confirm(`Enviar aviso para ${linhas.length} clientes?`)) return;
-  linhas.forEach((linha) => {
-    const botoes = linha.querySelectorAll("button");
-    if (botoes.length > 0) botoes[0].click();
-  });
-}
-
-function enviarCobrancaHoje() {
-  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='hoje']");
-  if (linhas.length === 0) { alert("Não há clientes vencendo hoje!"); return; }
-  if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) return;
-  linhas.forEach((linha) => {
-    const botoes = linha.querySelectorAll("button");
-    if (botoes.length > 0) botoes[0].click();
-  });
-}
-
-function enviarCobrancaAtraso() {
-  const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']");
-  if (linhas.length === 0) { alert("Não há clientes em atraso!"); return; }
-  if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) return;
-  linhas.forEach((linha) => {
-    const botoes = linha.querySelectorAll("button");
-    if (botoes.length > 0) botoes[0].click();
-  });
-}
+function enviarAvisoVencimento3Dias() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='3dias']"); if (!linhas.length) { showToast("Nenhum cliente vencendo em 3 dias.", "info"); return; } if (!confirm(`Enviar aviso para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
+function enviarCobrancaHoje() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='hoje']"); if (!linhas.length) { showToast("Nenhum cliente vencendo hoje.", "info"); return; } if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
+function enviarCobrancaAtraso() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']"); if (!linhas.length) { showToast("Nenhum cliente em atraso.", "info"); return; } if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
 
 function enviarCobrancaAmigavel() {
   const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']");
-  if (linhas.length === 0) { alert("Não há clientes em atraso!"); return; }
+  if (!linhas.length) { showToast("Nenhum cliente em atraso.", "info"); return; }
   if (!confirm(`Enviar cobrança amigável para ${linhas.length} clientes?`)) return;
-  linhas.forEach((linha) => {
-    const clienteNome = linha.cells[0].textContent;
-    const cliente = clientesWhatsApp.find(c => c.nome === clienteNome);
-    if (cliente && cliente.telefone) {
-      const template = configuracoesWhatsApp.templates.cobranca_amigavel || "";
-      const vencimento = formatarDataVencimento(cliente.vencimento);
-      const mensagem = substituirVariaveis(template, cliente, cliente.valor, vencimento);
-      salvarHistoricoWhatsApp(cliente, mensagem, "cobranca_amigavel", "Enviado");
-      const telefoneFormatado = formatarTelefoneWhatsApp(cliente.telefone);
-      const mensagemCodificada = encodeURIComponent(mensagem);
-      const whatsappURL = `https://wa.me/${telefoneFormatado}?text=${mensagemCodificada}`;
-      window.open(whatsappURL, "_blank");
-    }
-  });
+  linhas.forEach(l => { const nome = l.cells[0].textContent; const c = clientesWhatsApp.find(x => x.nome === nome); if (c && c.telefone) { const template = configuracoesWhatsApp.templates.cobranca_amigavel || ""; const msg = substituirVariaveis(template, c, c.valor, formatarDataVencimento(c.vencimento)); salvarHistoricoWhatsApp(c, msg, "cobranca_amigavel", "Enviado"); window.open(`https://wa.me/${formatarTelefoneWhatsApp(c.telefone)}?text=${encodeURIComponent(msg)}`, '_blank'); } });
 }
 
-// ===========================
-// WHATSAPP HISTORY
-// ===========================
-
 function salvarHistoricoWhatsApp(cliente, mensagem, tipo, status) {
-  const dataAtual = new Date();
-  const data = dataAtual.toLocaleDateString('pt-BR');
-  const hora = dataAtual.toLocaleTimeString('pt-BR');
-
-  db.collection("whatsapp_historico")
-    .add(secureData({
-      clienteId: cliente.id,
-      clienteNome: cliente.nome,
-      clienteTelefone: cliente.telefone,
-      mensagem: mensagem,
-      tipo: tipo,
-      status: status,
-      data: data,
-      hora: hora,
-      timestamp: dataAtual
-    }))
-    .catch((erro) => { console.error("Erro ao salvar histórico:", erro); });
+  const agora = new Date();
+  db.collection("whatsapp_historico").add(secureData({ clienteId: cliente.id, clienteNome: cliente.nome, clienteTelefone: cliente.telefone, mensagem, tipo, status, data: agora.toLocaleDateString('pt-BR'), hora: agora.toLocaleTimeString('pt-BR'), timestamp: agora })).catch(e => console.error("Erro histórico:", e));
 }
 
 function carregarHistoricoWhatsApp() {
   if (historicoWhatsAppListener) historicoWhatsAppListener();
-
-  historicoWhatsAppListener = db.collection("whatsapp_historico")
-    .where("tenantId", "==", getTenantId())
-    .orderBy("timestamp", "desc")
-    .limit(100)
-    .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaHistoricoWhatsApp");
-      if (!tabela) return;
-      tabela.innerHTML = "";
-
-      snapshot.forEach((doc) => {
-        const hist = doc.data();
-        const statusLower = (hist.status || "").toLowerCase();
-        tabela.innerHTML += `
-          <tr>
-            <td>${hist.clienteNome}</td>
-            <td>${hist.data}</td>
-            <td>${hist.hora}</td>
-            <td>${hist.tipo}</td>
-            <td><span class="status-${statusLower}">${hist.status}</span></td>
-            <td>
-              <button onclick="verMensagemHistorico('${doc.id}')">
-                <i class="fas fa-eye"></i> Ver
-              </button>
-            </td>
-          </tr>
-        `;
-      });
-    }, (erro) => { console.error("Erro ao carregar histórico:", erro); });
+  historicoWhatsAppListener = db.collection("whatsapp_historico").where("tenantId","==",getTenantId()).orderBy("timestamp","desc").limit(100).onSnapshot(snap => {
+    const tabela = document.getElementById("listaHistoricoWhatsApp");
+    if (!tabela) return;
+    tabela.innerHTML = "";
+    snap.forEach(doc => { const h = doc.data(); tabela.innerHTML += `<tr><td>${h.clienteNome}</td><td>${h.data}</td><td>${h.hora}</td><td>${h.tipo}</td><td><span class="status-${(h.status||"").toLowerCase()}">${h.status}</span></td><td><button onclick="verMensagemHistorico('${doc.id}')"><i class="fas fa-eye"></i> Ver</button></td></tr>`; });
+  }, e => console.error("Erro histórico:", e));
 }
 
 function filtrarHistoricoWhatsApp() {
   const busca = document.getElementById("wa_busca_historico").value.toLowerCase();
   const tipo = document.getElementById("wa_filtro_tipo_historico").value;
   const status = document.getElementById("wa_filtro_status_historico").value;
-
-  const linhas = document.querySelectorAll("#listaHistoricoWhatsApp tr");
-  linhas.forEach((linha) => {
+  document.querySelectorAll("#listaHistoricoWhatsApp tr").forEach(linha => {
     if (linha.cells.length < 5) return;
-    const cliente = linha.cells[0].textContent.toLowerCase();
-    const tipoLinha = linha.cells[3].textContent;
-    const statusLinha = linha.cells[4].textContent.toLowerCase();
-    const matchBusca = cliente.includes(busca);
-    const matchTipo = tipo === "" || tipoLinha === tipo;
-    const matchStatus = status === "" || statusLinha.includes(status.toLowerCase());
-    linha.style.display = matchBusca && matchTipo && matchStatus ? "" : "none";
+    const c = linha.cells[0].textContent.toLowerCase(); const t = linha.cells[3].textContent; const s = linha.cells[4].textContent.toLowerCase();
+    linha.style.display = c.includes(busca) && (tipo === "" || t === tipo) && (status === "" || s.includes(status.toLowerCase())) ? "" : "none";
   });
 }
 
-function verMensagemHistorico(historicoId) {
-  db.collection("whatsapp_historico")
-    .doc(historicoId)
-    .get()
-    .then((doc) => {
-      if (doc.exists) {
-        const hist = doc.data();
-        alert(`Mensagem enviada para ${hist.clienteNome}:\n\n${hist.mensagem}`);
-      }
-    })
-    .catch((erro) => { alert("Erro: " + erro.message); });
-}
+function verMensagemHistorico(id) { db.collection("whatsapp_historico").doc(id).get().then(doc => { if (doc.exists) showToast(doc.data().mensagem, "info", doc.data().clienteNome); }).catch(e => showToast("Erro: " + e.message, "error")); }
 
 function limparHistoricoWhatsApp() {
-  if (!confirm("Deseja limpar todo o histórico de mensagens?")) return;
-
-  db.collection("whatsapp_historico")
-    .where("tenantId", "==", getTenantId())
-    .get()
-    .then((snapshot) => {
-      const batch = db.batch();
-      snapshot.forEach((doc) => { batch.delete(doc.ref); });
-      return batch.commit();
-    })
-    .then(() => { alert("Histórico limpo com sucesso!"); })
-    .catch((erro) => { alert("Erro: " + erro.message); });
+  if (!confirm("Limpar todo o histórico?")) return;
+  db.collection("whatsapp_historico").where("tenantId","==",getTenantId()).get().then(snap => { const b = db.batch(); snap.forEach(d => b.delete(d.ref)); return b.commit(); }).then(() => showToast("Histórico limpo!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
 }
-
-// ===========================
-// WHATSAPP CONFIGURATIONS
-// ===========================
 
 function carregarConfiguracoesWhatsApp() {
-  db.collection("configuracoes")
-    .doc("whatsapp")
-    .get()
-    .then((doc) => {
-      if (!doc.exists) return;
-      const config = doc.data();
-
-      if (config.templates) {
-        configuracoesWhatsApp.templates = config.templates;
-        Object.keys(config.templates).forEach((tipo) => {
-          const textarea = document.getElementById("wa_template_" + tipo);
-          if (textarea) textarea.value = config.templates[tipo];
-        });
-      }
-      if (config.nomeEmpresa) {
-        configuracoesWhatsApp.nomeEmpresa = config.nomeEmpresa;
-        const el = document.getElementById("wa_nome_empresa");
-        if (el) el.value = config.nomeEmpresa;
-      }
-      if (config.apiProvider) {
-        configuracoesWhatsApp.apiProvider = config.apiProvider;
-        const el = document.getElementById("wa_api_provider");
-        if (el) el.value = config.apiProvider;
-      }
-      if (config.apiKey) {
-        configuracoesWhatsApp.apiKey = config.apiKey;
-        const el = document.getElementById("wa_api_key");
-        if (el) el.value = config.apiKey;
-      }
-      if (config.apiUrl) {
-        configuracoesWhatsApp.apiUrl = config.apiUrl;
-        const el = document.getElementById("wa_api_url");
-        if (el) el.value = config.apiUrl;
-      }
-    })
-    .catch((erro) => { console.error("Erro ao carregar configurações:", erro); });
+  db.collection("configuracoes").doc("whatsapp").get().then(doc => {
+    if (!doc.exists) return;
+    const config = doc.data();
+    if (config.templates) { configuracoesWhatsApp.templates = config.templates; Object.keys(config.templates).forEach(tipo => { const ta = document.getElementById("wa_template_" + tipo); if (ta) ta.value = config.templates[tipo]; }); }
+    if (config.nomeEmpresa) { configuracoesWhatsApp.nomeEmpresa = config.nomeEmpresa; const el = document.getElementById("wa_nome_empresa"); if (el) el.value = config.nomeEmpresa; }
+    if (config.apiProvider) { configuracoesWhatsApp.apiProvider = config.apiProvider; const el = document.getElementById("wa_api_provider"); if (el) el.value = config.apiProvider; }
+    if (config.apiKey) { configuracoesWhatsApp.apiKey = config.apiKey; const el = document.getElementById("wa_api_key"); if (el) el.value = config.apiKey; }
+    if (config.apiUrl) { configuracoesWhatsApp.apiUrl = config.apiUrl; const el = document.getElementById("wa_api_url"); if (el) el.value = config.apiUrl; }
+  }).catch(e => console.error("Erro config:", e));
 }
 
+function formatarTelefoneWhatsApp(telefone) { let t = telefone.replace(/\D/g,''); if (t.startsWith('55') && t.length === 12) t = t.substring(2); return '55' + t; }
+function formatarDataVencimento(dia) { const d = new Date(); d.setDate(parseInt(dia)); return d.toLocaleDateString('pt-BR'); }
+
 // ===========================
-// WHATSAPP HELPER FUNCTIONS
+// ADMIN SECTION
 // ===========================
 
-function formatarTelefoneWhatsApp(telefone) {
-  let telefoneLimpo = telefone.replace(/\D/g, '');
-  if (telefoneLimpo.startsWith('55') && telefoneLimpo.length === 12) {
-    telefoneLimpo = telefoneLimpo.substring(2);
-  }
-  return '55' + telefoneLimpo;
+function mostrarAbaAdmin(aba, event) {
+  if (!isMasterAdmin()) { showToast("Acesso negado.", "error"); return; }
+  document.querySelectorAll(".abaAdmin").forEach(a => { a.style.display = "none"; a.classList.remove("ativa"); });
+  const el = document.getElementById("admin-" + aba);
+  if (!el) return; el.style.display = "block"; el.classList.add("ativa");
+  document.querySelectorAll(".adminTabBtn").forEach(btn => { btn.classList.remove("active"); if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) btn.classList.add("active"); });
+  if (aba === "dashboard") carregarDashboardAdmin();
+  else if (aba === "usuarios") carregarUsuariosAdmin();
 }
-
-function formatarDataVencimento(diaVencimento) {
-  const dataAtual = new Date();
-  const dia = parseInt(diaVencimento);
-  dataAtual.setDate(dia);
-  return dataAtual.toLocaleDateString('pt-BR');
-}
-
-// Template change handlers
-document.addEventListener("DOMContentLoaded", () => {
-  const templateIndividual = document.getElementById("wa_template_individual");
-  const templateMassa = document.getElementById("wa_template_massa");
-
-  if (templateIndividual) {
-    templateIndividual.addEventListener("change", function () {
-      if (this.value !== "personalizado") {
-        carregarTemplateNaTextarea(this.value, "wa_mensagem_individual");
-      }
-    });
-  }
-
-  if (templateMassa) {
-    templateMassa.addEventListener("change", function () {
-      if (this.value !== "personalizado") {
-        carregarTemplateNaTextarea(this.value, "wa_mensagem_massa");
-      }
-    });
-  }
-});
-
-// ===========================
-// ADMIN MODULE
-// ===========================
-
-// ===========================
-// ADMIN TAB NAVIGATION
-// ===========================
-
-function mostrarAbaAdmin(aba) {
-  if (!isMasterAdmin()) {
-    alert('Acesso negado: painel administrativo disponível somente para MASTER_ADMIN.');
-    return;
-  }
-
-  document.querySelectorAll(".abaAdmin").forEach(abaa => {
-    abaa.style.display = "none";
-    abaa.classList.remove("ativa");
-  });
-
-  const abaElement = document.getElementById("admin-" + aba);
-  if (!abaElement) {
-    console.warn(`Aba administrativa inválida: ${aba}`);
-    return;
-  }
-
-  abaElement.style.display = "block";
-  abaElement.classList.add("ativa");
-
-  document.querySelectorAll(".adminTabBtn").forEach(btn => {
-    btn.classList.remove("active");
-    if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) {
-      btn.classList.add("active");
-    }
-  });
-
-  if (aba === "dashboard") {
-    carregarDashboardAdmin();
-  } else if (aba === "usuarios") {
-    carregarUsuariosAdmin();
-  }
-}
-
-// ===========================
-// ADMIN USER DATA LOADING
-// ===========================
-
-async function carregarDadosUsuario(uid) {
-  try {
-    const doc = await db.collection("usuarios").doc(uid).get();
-    if (doc.exists) {
-      return doc.data();
-    } else {
-      const dadosBasicos = {
-        uid: uid,
-        nome: "",
-        email: auth.currentUser.email,
-        role: "cliente",
-        status: "Ativo",
-        plano: "Básico",
-        criadoEm: new Date()
-      };
-      await db.collection("usuarios").doc(uid).set(dadosBasicos);
-      return dadosBasicos;
-    }
-  } catch (erro) {
-    console.error("Erro ao carregar dados do usuário:", erro);
-    return { uid, email: auth.currentUser.email, role: "cliente", status: "Ativo" };
-  }
-}
-
-// ===========================
-// ADMIN DASHBOARD
-// ===========================
 
 function carregarDashboardAdmin() {
   if (adminDashboardListener) adminDashboardListener();
-
-  adminDashboardListener = db.collection("usuarios")
-    .onSnapshot((snapshot) => {
-      let totalUsuarios = 0;
-      let usuariosAtivos = 0;
-      let usuariosBloqueados = 0;
-      let receitaMensal = 0;
-      let novosCadastros = 0;
-
-      const dataAtual = new Date();
-      const mesAtual = dataAtual.getMonth();
-      const anoAtual = dataAtual.getFullYear();
-
-      const tabelaUltimos = document.getElementById("listaUltimosUsuarios");
-      if (!tabelaUltimos) return;
-      tabelaUltimos.innerHTML = "";
-
-      const todosUsuarios = [];
-      snapshot.forEach((doc) => {
-        const usuario = doc.data();
-        usuario._id = doc.id;
-        todosUsuarios.push(usuario);
-        totalUsuarios++;
-
-        if (usuario.status === "Ativo") usuariosAtivos++;
-        else if (usuario.status === "Bloqueado") usuariosBloqueados++;
-
-        const valorPlano = configuracoesSistema.planos[usuario.plano] || 0;
-        receitaMensal += valorPlano;
-
-        if (usuario.criadoEm) {
-          const dataCadastro = usuario.criadoEm.toDate ? usuario.criadoEm.toDate() : new Date(usuario.criadoEm);
-          if (dataCadastro.getMonth() === mesAtual && dataCadastro.getFullYear() === anoAtual) {
-            novosCadastros++;
-          }
-        }
-      });
-
-      const setText = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = String(val);
-      };
-      setText("admin_total_usuarios", totalUsuarios);
-      setText("admin_usuarios_ativos", usuariosAtivos);
-      setText("admin_usuarios_bloqueados", usuariosBloqueados);
-      setText("admin_receita_mensal", "R$ " + receitaMensal.toFixed(2));
-      setText("admin_novos_cadastros", novosCadastros);
-
-      // Últimos 5 usuários
-      todosUsuarios.slice(-5).reverse().forEach((usuario) => {
-        const dataCriacao = usuario.criadoEm
-          ? new Date(usuario.criadoEm.toDate ? usuario.criadoEm.toDate() : usuario.criadoEm).toLocaleDateString('pt-BR')
-          : "";
-        const statusLower = (usuario.status || "").toLowerCase();
-        tabelaUltimos.innerHTML += `
-          <tr>
-            <td>${usuario.nome || ""}</td>
-            <td>${usuario.empresa || ""}</td>
-            <td>${usuario.email || ""}</td>
-            <td>${usuario.plano || ""}</td>
-            <td><span class="status-${statusLower}">${usuario.status}</span></td>
-            <td>${dataCriacao}</td>
-          </tr>
-        `;
-      });
-    }, (erro) => { console.error("Erro ao carregar dashboard admin:", erro); });
+  adminDashboardListener = db.collection("usuarios").onSnapshot(snap => {
+    let total = 0, ativos = 0, bloqueados = 0, receita = 0, novos = 0;
+    const agora = new Date(); const mes = agora.getMonth(), ano = agora.getFullYear();
+    const todos = [];
+    snap.forEach(doc => { const u = doc.data(); u._id = doc.id; todos.push(u); total++; if (u.status === "Ativo") ativos++; else if (u.status === "Bloqueado") bloqueados++; receita += configuracoesSistema.planos[u.plano] || 0; if (u.criadoEm) { const d = u.criadoEm.toDate ? u.criadoEm.toDate() : new Date(u.criadoEm); if (d.getMonth() === mes && d.getFullYear() === ano) novos++; } });
+    document.getElementById("admin_total_usuarios").innerText = total;
+    document.getElementById("admin_usuarios_ativos").innerText = ativos;
+    document.getElementById("admin_usuarios_bloqueados").innerText = bloqueados;
+    document.getElementById("admin_receita_mensal").innerText = "R$ " + receita.toFixed(2);
+    document.getElementById("admin_novos_cadastros").innerText = novos;
+    const tabela = document.getElementById("listaUltimosUsuarios");
+    if (tabela) { tabela.innerHTML = ""; todos.slice(-5).reverse().forEach(u => { tabela.innerHTML += `<tr><td>${u.nome||""}</td><td>${u.empresa||""}</td><td>${u.email||""}</td><td>${u.plano||""}</td><td><span class="status-${(u.status||"").toLowerCase()}">${u.status}</span></td><td>${u.criadoEm ? new Date(u.criadoEm.toDate ? u.criadoEm.toDate() : u.criadoEm).toLocaleDateString('pt-BR') : ""}</td></tr>`; }); }
+  }, e => console.error("Erro admin:", e));
 }
-
-// ===========================
-// ADMIN USER MANAGEMENT
-// ===========================
 
 function carregarUsuariosAdmin() {
   if (adminUsuariosListener) adminUsuariosListener();
-
-  adminUsuariosListener = db.collection("usuarios")
-    .orderBy("criadoEm", "desc")
-    .onSnapshot((snapshot) => {
-      const tabela = document.getElementById("listaUsuariosAdmin");
-      if (!tabela) return;
-      tabela.innerHTML = "";
-
-      snapshot.forEach((doc) => {
-        const usuario = doc.data();
-        const dataCriacao = usuario.criadoEm
-          ? new Date(usuario.criadoEm.toDate ? usuario.criadoEm.toDate() : usuario.criadoEm).toLocaleDateString('pt-BR')
-          : "";
-        const statusLower = (usuario.status || "").toLowerCase();
-
-        tabela.innerHTML += `
-          <tr>
-            <td>${usuario.nome || ""}</td>
-            <td>${usuario.empresa || ""}</td>
-            <td>${usuario.email || ""}</td>
-            <td>${usuario.telefone || ""}</td>
-            <td>${usuario.plano || ""}</td>
-            <td><span class="status-${statusLower}">${usuario.status}</span></td>
-            <td>${usuario.role || "cliente"}</td>
-            <td>${dataCriacao}</td>
-            <td>
-              <button onclick="editarUsuario('${doc.id}')" title="Editar"><i class="fas fa-pencil"></i></button>
-              <button onclick="redefinirSenhaUsuario('${doc.id}')" title="Redefinir Senha"><i class="fas fa-key"></i></button>
-              ${usuario.status === "Ativo"
-                ? `<button onclick="bloquearUsuario('${doc.id}')" title="Bloquear"><i class="fas fa-lock"></i></button>`
-                : `<button onclick="ativarUsuario('${doc.id}')" title="Ativar"><i class="fas fa-unlock"></i></button>`
-              }
-              <button onclick="excluirUsuario('${doc.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
-            </td>
-          </tr>
-        `;
-      });
-    }, (erro) => { console.error("Erro ao carregar usuários admin:", erro); });
+  adminUsuariosListener = db.collection("usuarios").orderBy("criadoEm","desc").onSnapshot(snap => {
+    const tabela = document.getElementById("listaUsuariosAdmin");
+    if (!tabela) return;
+    tabela.innerHTML = "";
+    snap.forEach(doc => { const u = doc.data(); tabela.innerHTML += `<tr><td>${u.nome||""}</td><td>${u.empresa||""}</td><td>${u.email||""}</td><td>${u.telefone||""}</td><td>${u.plano||""}</td><td><span class="status-${(u.status||"").toLowerCase()}">${u.status}</span></td><td>${u.role||"cliente"}</td><td>${u.criadoEm ? new Date(u.criadoEm.toDate ? u.criadoEm.toDate() : u.criadoEm).toLocaleDateString('pt-BR') : ""}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarUsuario('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-warning" onclick="redefinirSenhaUsuario('${doc.id}')" title="Senha"><i class="fas fa-key"></i><span class="tooltip-text">Redefinir</span></button>${u.status === "Ativo" ? `<button class="btn-action btn-action-warning" onclick="bloquearUsuario('${doc.id}')" title="Bloquear"><i class="fas fa-lock"></i><span class="tooltip-text">Bloquear</span></button>` : `<button class="btn-action btn-action-success" onclick="ativarUsuario('${doc.id}')" title="Ativar"><i class="fas fa-unlock"></i><span class="tooltip-text">Ativar</span></button>`}<button class="btn-action btn-action-delete" onclick="abrirModalExclusao('usuario', '${doc.id}', '${u.nome||''}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`; });
+  }, e => console.error("Erro admin usuários:", e));
 }
 
 function filtrarUsuarios() {
   const busca = document.getElementById("admin_busca_usuario").value.toLowerCase();
   const status = document.getElementById("admin_filtro_status").value;
   const plano = document.getElementById("admin_filtro_plano").value;
-
-  const linhas = document.querySelectorAll("#listaUsuariosAdmin tr");
-  linhas.forEach((linha) => {
+  document.querySelectorAll("#listaUsuariosAdmin tr").forEach(linha => {
     if (linha.cells.length < 8) return;
-    const nome = linha.cells[0].textContent.toLowerCase();
-    const empresa = linha.cells[1].textContent.toLowerCase();
-    const email = linha.cells[2].textContent.toLowerCase();
-    const statusLinha = linha.cells[5].textContent;
-    const planoLinha = linha.cells[4].textContent;
-
-    const matchBusca = nome.includes(busca) || empresa.includes(busca) || email.includes(busca);
-    const matchStatus = status === "" || statusLinha.includes(status);
-    const matchPlano = plano === "" || planoLinha === plano;
-
-    linha.style.display = matchBusca && matchStatus && matchPlano ? "" : "none";
+    const n = linha.cells[0].textContent.toLowerCase(); const e = linha.cells[1].textContent.toLowerCase(); const em = linha.cells[2].textContent.toLowerCase(); const s = linha.cells[5].textContent; const p = linha.cells[4].textContent;
+    linha.style.display = (n.includes(busca)||e.includes(busca)||em.includes(busca)) && (status === "" || s.includes(status)) && (plano === "" || p === plano) ? "" : "none";
   });
 }
 
-// ===========================
-// ADMIN USER MODAL
-// ===========================
-
-function abrirModalUsuario() {
-  const modal = document.getElementById("modalUsuario");
-  if (modal) modal.style.display = "flex";
-  const titulo = document.getElementById("modalUsuarioTitulo");
-  if (titulo) titulo.innerText = "Novo Usuário";
-  limparFormularioUsuario();
-  usuarioEditando = null;
-}
-
-function fecharModalUsuario() {
-  const modal = document.getElementById("modalUsuario");
-  if (modal) modal.style.display = "none";
-  limparFormularioUsuario();
-  usuarioEditando = null;
-}
-
+function abrirModalUsuario() { const modal = document.getElementById("modalUsuario"); if (modal) modal.style.display = "flex"; const titulo = document.getElementById("modalUsuarioTitulo"); if (titulo) titulo.innerText = "Novo Usuário"; limparFormularioUsuario(); usuarioEditando = null; }
+function fecharModalUsuario() { document.getElementById("modalUsuario").style.display = "none"; limparFormularioUsuario(); usuarioEditando = null; }
 function limparFormularioUsuario() {
-  document.getElementById("admin_usuario_id").value = "";
-  document.getElementById("admin_usuario_nome").value = "";
-  document.getElementById("admin_usuario_empresa").value = "";
-  document.getElementById("admin_usuario_email").value = "";
-  document.getElementById("admin_usuario_telefone").value = "";
-  const plano = document.getElementById("admin_usuario_plano");
-  if (plano) plano.selectedIndex = 0;
-  const role = document.getElementById("admin_usuario_role");
-  if (role) role.selectedIndex = 0;
-  const status = document.getElementById("admin_usuario_status");
-  if (status) status.selectedIndex = 0;
+  document.getElementById("admin_usuario_id").value = ""; document.getElementById("admin_usuario_nome").value = "";
+  document.getElementById("admin_usuario_empresa").value = ""; document.getElementById("admin_usuario_email").value = "";
+  document.getElementById("admin_usuario_telefone").value = ""; const p = document.getElementById("admin_usuario_plano"); if (p) p.selectedIndex = 0;
+  const r = document.getElementById("admin_usuario_role"); if (r) r.selectedIndex = 0; const s = document.getElementById("admin_usuario_status"); if (s) s.selectedIndex = 0;
 }
 
 async function salvarUsuario() {
-  if (!isMasterAdmin()) { alert("Ação reservada para MASTER_ADMIN."); return; }
-
-  const id = document.getElementById("admin_usuario_id").value;
-  const nome = document.getElementById("admin_usuario_nome").value;
-  const empresa = document.getElementById("admin_usuario_empresa").value;
-  const email = document.getElementById("admin_usuario_email").value;
-  const telefone = document.getElementById("admin_usuario_telefone").value;
-  const plano = document.getElementById("admin_usuario_plano").value;
+  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
+  const id = document.getElementById("admin_usuario_id").value; const nome = document.getElementById("admin_usuario_nome").value;
+  const empresa = document.getElementById("admin_usuario_empresa").value; const email = document.getElementById("admin_usuario_email").value;
+  const telefone = document.getElementById("admin_usuario_telefone").value; const plano = document.getElementById("admin_usuario_plano").value;
   const status = document.getElementById("admin_usuario_status").value;
-
-  if (!nome || !email) { alert("Preencha pelo menos: Nome e E-mail!"); return; }
-
+  if (!nome || !email) { showToast("Preencha nome e e-mail!", "warning"); return; }
   try {
-    if (id) {
-      await db.collection("usuarios").doc(id).update(secureUpdate({ nome, empresa, telefone, plano, status }));
-      alert("Usuário atualizado com sucesso!");
-    } else {
-      const createProvider = functions.httpsCallable('createProvider');
-      const response = await createProvider({ email, nome, empresa, telefone, plano, status });
-      alert(`Usuário criado com sucesso!\nE-mail: ${email}\nSenha temporária: ${response.data.senha}`);
-    }
-    fecharModalUsuario();
-    carregarUsuariosAdmin();
-    carregarDashboardAdmin();
-  } catch (erro) {
-    alert("Erro: " + (erro.message || erro));
-  }
+    if (id) { await db.collection("usuarios").doc(id).update(secureUpdate({ nome, empresa, telefone, plano, status })); showToast("Usuário atualizado!", "success"); }
+    else { const createProvider = functions.httpsCallable('createProvider'); const resp = await createProvider({ email, nome, empresa, telefone, plano, status }); showToast(`Usuário criado! Senha: ${resp.data.senha}`, "success"); }
+    fecharModalUsuario(); carregarUsuariosAdmin(); carregarDashboardAdmin();
+  } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function editarUsuario(id) {
-  try {
-    const doc = await db.collection("usuarios").doc(id).get();
-    if (!doc.exists) { alert("Usuário não encontrado!"); return; }
-    const usuario = doc.data();
-
-    usuarioEditando = id;
-    const modal = document.getElementById("modalUsuario");
-    if (modal) modal.style.display = "flex";
-    const titulo = document.getElementById("modalUsuarioTitulo");
-    if (titulo) titulo.innerText = "Editar Usuário";
-
-    document.getElementById("admin_usuario_id").value = id;
-    document.getElementById("admin_usuario_nome").value = usuario.nome || "";
-    document.getElementById("admin_usuario_empresa").value = usuario.empresa || "";
-    document.getElementById("admin_usuario_email").value = usuario.email || "";
-    document.getElementById("admin_usuario_telefone").value = usuario.telefone || "";
-    if (document.getElementById("admin_usuario_plano")) document.getElementById("admin_usuario_plano").value = usuario.plano || "";
-    if (document.getElementById("admin_usuario_role")) document.getElementById("admin_usuario_role").value = usuario.role || "cliente";
-    if (document.getElementById("admin_usuario_status")) document.getElementById("admin_usuario_status").value = usuario.status || "";
-  } catch (erro) { alert("Erro: " + erro.message); }
+  try { const doc = await db.collection("usuarios").doc(id).get(); if (!doc.exists) { showToast("Usuário não encontrado!", "error"); return; } const u = doc.data(); usuarioEditando = id; document.getElementById("modalUsuario").style.display = "flex"; document.getElementById("modalUsuarioTitulo").innerText = "Editar Usuário"; document.getElementById("admin_usuario_id").value = id; document.getElementById("admin_usuario_nome").value = u.nome || ""; document.getElementById("admin_usuario_empresa").value = u.empresa || ""; document.getElementById("admin_usuario_email").value = u.email || ""; document.getElementById("admin_usuario_telefone").value = u.telefone || ""; if (document.getElementById("admin_usuario_plano")) document.getElementById("admin_usuario_plano").value = u.plano || ""; if (document.getElementById("admin_usuario_role")) document.getElementById("admin_usuario_role").value = u.role || "cliente"; if (document.getElementById("admin_usuario_status")) document.getElementById("admin_usuario_status").value = u.status || ""; } catch (e) { showToast("Erro: " + e.message, "error"); }
 }
 
 async function bloquearUsuario(id) {
-  if (!isMasterAdmin()) { alert("Ação reservada para MASTER_ADMIN."); return; }
-  if (!confirm("Deseja bloquear este usuário?")) return;
-  try {
-    const updateUserStatus = functions.httpsCallable('updateUserStatus');
-    await updateUserStatus({ uid: id, status: "Bloqueado" });
-    alert("Usuário bloqueado com sucesso!");
-    carregarUsuariosAdmin();
-    carregarDashboardAdmin();
-  } catch (erro) { alert("Erro: " + (erro.message || erro)); }
+  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
+  if (!confirm("Bloquear este usuário?")) return;
+  try { await functions.httpsCallable('updateUserStatus')({ uid: id, status: "Bloqueado" }); showToast("Usuário bloqueado!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function ativarUsuario(id) {
-  if (!isMasterAdmin()) { alert("Ação reservada para MASTER_ADMIN."); return; }
-  if (!confirm("Deseja ativar este usuário?")) return;
-  try {
-    const updateUserStatus = functions.httpsCallable('updateUserStatus');
-    await updateUserStatus({ uid: id, status: "Ativo" });
-    alert("Usuário ativado com sucesso!");
-    carregarUsuariosAdmin();
-    carregarDashboardAdmin();
-  } catch (erro) { alert("Erro: " + (erro.message || erro)); }
+  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
+  if (!confirm("Ativar este usuário?")) return;
+  try { await functions.httpsCallable('updateUserStatus')({ uid: id, status: "Ativo" }); showToast("Usuário ativado!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
-async function excluirUsuario(id) {
-  if (!isMasterAdmin()) { alert("Ação reservada para MASTER_ADMIN."); return; }
-  if (!confirm("Deseja excluir este usuário? Esta ação não pode ser desfeita.")) return;
-  try {
-    const deleteUserAccount = functions.httpsCallable('deleteUserAccount');
-    await deleteUserAccount({ uid: id });
-    alert("Usuário excluído com sucesso!");
-    carregarUsuariosAdmin();
-    carregarDashboardAdmin();
-  } catch (erro) { alert("Erro: " + (erro.message || erro)); }
+async function excluirUsuarioAdmin(id) {
+  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
+  try { await functions.httpsCallable('deleteUserAccount')({ uid: id }); showToast("Usuário excluído!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function redefinirSenhaUsuario(id) {
-  if (!isMasterAdmin()) { alert("Ação reservada para MASTER_ADMIN."); return; }
-  try {
-    const doc = await db.collection("usuarios").doc(id).get();
-    if (!doc.exists) { alert("Usuário não encontrado!"); return; }
-    const usuario = doc.data();
-    if (!confirm(`Deseja gerar link de redefinição de senha para ${usuario.email}?`)) return;
-    const sendPasswordReset = functions.httpsCallable('sendPasswordReset');
-    const response = await sendPasswordReset({ email: usuario.email });
-    alert(`Link de redefinição gerado. Envie este link para o usuário:\n${response.data.link}`);
-  } catch (erro) { alert("Erro: " + (erro.message || erro)); }
+  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
+  try { const doc = await db.collection("usuarios").doc(id).get(); if (!doc.exists) { showToast("Usuário não encontrado!", "error"); return; } const u = doc.data(); if (!confirm(`Redefinir senha de ${u.email}?`)) return; const resp = await functions.httpsCallable('sendPasswordReset')({ email: u.email }); showToast(`Link: ${resp.data.link}`, "info", "Redefinir Senha"); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
-// ===========================
-// DIAGNÓSTICO DE DADOS
-// ===========================
+function excluirUsuario(id) { if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; } abrirModalExclusao('usuario', id, ''); }
 
 async function diagnosticarDados() {
-  if (!auth.currentUser) { alert("Você precisa estar logado para executar o diagnóstico."); return; }
-  if (!usuarioAtual.tenantId) { alert("Tenant ID não encontrado. Faça login novamente."); return; }
-
-  const uid = auth.currentUser.uid;
-  console.log("=== DIAGNÓSTICO DE DADOS ===");
-  console.log("Usuário atual UID:", uid);
-  console.log("Usuário atual Email:", auth.currentUser.email);
-  console.log("Usuário atual Role:", usuarioAtual.role);
-  console.log("Usuário atual Tenant ID:", usuarioAtual.tenantId);
-
-  try {
-    const results = await Promise.all([
-      db.collection("clientes").where("tenantId", "==", getTenantId()).get(),
-      db.collection("planos").where("tenantId", "==", getTenantId()).get(),
-      db.collection("recebimentos").where("tenantId", "==", getTenantId()).get(),
-      db.collection("despesas").where("tenantId", "==", getTenantId()).get(),
-      db.collection("mensalidades").where("tenantId", "==", getTenantId()).get(),
-      db.collection("whatsapp_historico").where("tenantId", "==", getTenantId()).get()
-    ]);
-
-    const mensagem =
-      "=== DIAGNÓSTICO DE DADOS ===\n\n" +
-      `Usuário UID: ${uid}\n` +
-      `Usuário Email: ${auth.currentUser.email}\n` +
-      `Usuário Role: ${usuarioAtual.role}\n` +
-      `Tenant ID: ${usuarioAtual.tenantId}\n\n` +
-      `Clientes no tenant: ${results[0].size}\n` +
-      `Planos no tenant: ${results[1].size}\n` +
-      `Recebimentos no tenant: ${results[2].size}\n` +
-      `Despesas no tenant: ${results[3].size}\n` +
-      `Mensalidades no tenant: ${results[4].size}\n` +
-      `Histórico WhatsApp no tenant: ${results[5].size}\n\n` +
-      "Verifique o console do navegador (F12) para mais detalhes.";
-
-    alert(mensagem);
-  } catch (erro) {
-    console.error("Erro no diagnóstico:", erro);
-    alert("Erro ao executar diagnóstico: " + (erro.message || erro));
-  }
+  if (!auth.currentUser) { showToast("Faça login.", "warning"); return; }
+  if (!usuarioAtual.tenantId) { showToast("Tenant não encontrado.", "error"); return; }
+  const results = await Promise.all([
+    db.collection("clientes").where("tenantId","==",getTenantId()).get(),
+    db.collection("planos").where("tenantId","==",getTenantId()).get(),
+    db.collection("recebimentos").where("tenantId","==",getTenantId()).get(),
+    db.collection("despesas").where("tenantId","==",getTenantId()).get(),
+    db.collection("mensalidades").where("tenantId","==",getTenantId()).get(),
+    db.collection("whatsapp_historico").where("tenantId","==",getTenantId()).get()
+  ]);
+  showToast(`Clientes: ${results[0].size} | Planos: ${results[1].size} | Recebimentos: ${results[2].size} | Despesas: ${results[3].size} | Mensalidades: ${results[4].size} | WhatsApp: ${results[5].size}`, "info", "Diagnóstico");
 }
 
-// ===========================
-// DATA MIGRATION (ADMIN ONLY)
-// ===========================
-
-async function migrarDadosExistentes() {
-  alert("Migração de dados antigo deve ser realizada por um procedimento backend seguro.\n\nEntre em contato com a equipe de TI para executar a migração centralizada.");
-}
+function migrarDadosExistentes() { showToast("Migração deve ser feita via backend seguro.", "info"); }
 
 // ===========================
 // ENGENHARIA FTTH
@@ -3463,88 +2017,28 @@ async function migrarDadosExistentes() {
 function addSplitter() {
   const div = document.createElement("div");
   div.className = "splitter-container";
-  div.innerHTML = `
-    <select class="splitter">
-      <option value="0">Sem splitter</option>
-      <option value="3.5">1:2</option>
-      <option value="7">1:4</option>
-      <option value="10.5">1:8</option>
-      <option value="13.5">1:16</option>
-      <option value="17">1:32</option>
-    </select>
-    <button class="remove-btn" onclick="removeSplitter(this)">✕</button>
-  `;
+  div.innerHTML = `<select class="splitter"><option value="0">Sem splitter</option><option value="3.5">1:2</option><option value="7">1:4</option><option value="10.5">1:8</option><option value="13.5">1:16</option><option value="17">1:32</option></select><button class="remove-btn" onclick="removeSplitter(this)">✕</button>`;
   const container = document.getElementById("calc_splitters");
   if (container) container.appendChild(div);
 }
 
-function removeSplitter(btn) {
-  const container = btn.parentElement;
-  if (document.querySelectorAll("#calc_splitters .splitter-container").length > 1) {
-    container.remove();
-  }
-}
+function removeSplitter(btn) { if (document.querySelectorAll("#calc_splitters .splitter-container").length > 1) btn.parentElement.remove(); }
 
 function calcularFTTH() {
-  const olt = parseFloat(document.getElementById("calc_olt").value);
-  const km = parseFloat(document.getElementById("calc_km").value);
-  const lossKm = parseFloat(document.getElementById("calc_lossKm").value);
-  const conn = parseInt(document.getElementById("calc_conn").value);
-  const lossConn = parseFloat(document.getElementById("calc_lossConn").value);
-  const threshold = parseFloat(document.getElementById("calc_threshold").value);
-
-  if (isNaN(olt) || isNaN(km) || isNaN(lossKm) || isNaN(conn) || isNaN(lossConn)) {
-    document.getElementById("calc_resultado").innerHTML = `
-      <div class="calcResultado calcResultadoErro">
-        <p>⚠️ Preencha todos os campos com valores válidos</p>
-      </div>
-    `;
-    return;
-  }
-
-  if (km < 0 || conn < 0 || lossKm < 0 || lossConn < 0) {
-    document.getElementById("calc_resultado").innerHTML = `
-      <div class="calcResultado calcResultadoErro">
-        <p>⚠️ Valores negativos não são permitidos</p>
-      </div>
-    `;
-    return;
-  }
-
-  let perdaTotal = km * lossKm;
-  perdaTotal += conn * lossConn;
-
-  const splitters = document.querySelectorAll("#calc_splitters .splitter");
-  let cadeia = [];
-
-  splitters.forEach(s => {
-    const val = parseFloat(s.value);
-    if (val > 0) {
-      perdaTotal += val;
-      cadeia.push(val);
-    }
-  });
-
-  const final = olt - perdaTotal;
-  let status = final >= threshold ? "🟢 OK (Dentro do padrão)" : "🔴 RUIM (Perda alta)";
-  let statusClass = final >= threshold ? "calcResultadoSucesso" : "calcResultadoErro";
-
-  document.getElementById("calc_resultado").innerHTML = `
-    <div class="calcResultado ${statusClass}">
-      <p>📡 OLT: ${olt} dBm</p>
-      <p>📉 Perda fibra: ${(km * lossKm).toFixed(2)} dB</p>
-      <p>🔌 Conectores: ${(conn * lossConn).toFixed(2)} dB</p>
-      <p>🔀 Splitters: ${cadeia.join(" + ") || 0} dB</p>
-      <hr style="margin: 15px 0; border: none; border-top: 1px solid rgba(255,255,255,0.1);">
-      <h3>⚡ Potência final: ${final.toFixed(2)} dBm</h3>
-      <h3>${status}</h3>
-      <p style="margin-top: 10px; font-size: 12px; color: rgba(255,255,255,0.7);">Perda total: ${perdaTotal.toFixed(2)} dB</p>
-    </div>
-  `;
+  const olt = parseFloat(document.getElementById("calc_olt").value); const km = parseFloat(document.getElementById("calc_km").value);
+  const lossKm = parseFloat(document.getElementById("calc_lossKm").value); const conn = parseInt(document.getElementById("calc_conn").value);
+  const lossConn = parseFloat(document.getElementById("calc_lossConn").value); const threshold = parseFloat(document.getElementById("calc_threshold").value);
+  if (isNaN(olt)||isNaN(km)||isNaN(lossKm)||isNaN(conn)||isNaN(lossConn)) { document.getElementById("calc_resultado").innerHTML = '<div class="calcResultado calcResultadoErro"><p>⚠️ Preencha todos os campos</p></div>'; return; }
+  if (km < 0 || conn < 0 || lossKm < 0 || lossConn < 0) { document.getElementById("calc_resultado").innerHTML = '<div class="calcResultado calcResultadoErro"><p>⚠️ Valores negativos não permitidos</p></div>'; return; }
+  let perda = km * lossKm + conn * lossConn;
+  const splitters = document.querySelectorAll("#calc_splitters .splitter"); const cadeia = [];
+  splitters.forEach(s => { const v = parseFloat(s.value); if (v > 0) { perda += v; cadeia.push(v); } });
+  const final = olt - perda; const ok = final >= threshold; const style = ok ? "calcResultadoSucesso" : "calcResultadoErro"; const status = ok ? "🟢 OK (Dentro do padrão)" : "🔴 RUIM (Perda alta)";
+  document.getElementById("calc_resultado").innerHTML = `<div class="calcResultado ${style}"><p>📡 OLT: ${olt} dBm</p><p>📉 Fibra: ${(km*lossKm).toFixed(2)} dB</p><p>🔌 Conectores: ${(conn*lossConn).toFixed(2)} dB</p><p>🔀 Splitters: ${cadeia.join(" + ") || 0} dB</p><hr style="margin:15px 0;border:none;border-top:1px solid rgba(255,255,255,0.1);"><h3>⚡ Potência final: ${final.toFixed(2)} dBm</h3><h3>${status}</h3><p style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.7);">Perda total: ${perda.toFixed(2)} dB</p></div>`;
 }
 
 // ===========================
-// AUTH STATE LISTENER - UNIFICADO
+// AUTH STATE LISTENER
 // ===========================
 
 auth.onAuthStateChanged(async (user) => {
@@ -3552,46 +2046,42 @@ auth.onAuthStateChanged(async (user) => {
 
   if (user) {
     try {
-      // If user is on index.html and is superadmin, redirect to superadmin panel
       const currentPage = window.location.pathname.split('/').pop() || 'index.html';
       const isIndexPage = currentPage === 'index.html' || currentPage === '';
-      
+
       await carregarUsuarioAtual();
       mostrarAdminIfNeeded();
 
-      // Check if superadmin - redirect to superadmin.html if on index page
-      if ((usuarioAtual.role === 'superadmin' || isMasterAdmin()) && isIndexPage) {
+      if ((usuarioAtual.role === 'superadmin' || usuarioAtual.role === 'MASTER_ADMIN') && isIndexPage) {
         window.location.href = 'superadmin.html';
         return;
       }
 
-      // Verifica se o usuário já está em alguma tela ativa
-      // (loginTela visível significa que precisa redirecionar para o sistema)
       const loginTela = document.getElementById("loginTela");
       const cadastroTela = document.getElementById("cadastroTela");
       const sistema = document.getElementById("sistema");
 
-      // Só redireciona se estiver na tela de login (não se veio do cadastro)
       const loginVisivel = loginTela && loginTela.style.display !== "none";
       const cadastroVisivel = cadastroTela && cadastroTela.style.display !== "none";
 
       if (loginVisivel && !cadastroVisivel) {
-        // Usuário recarregou a página ou fez login externo
         loginTela.style.display = "none";
         if (cadastroTela) cadastroTela.style.display = "none";
         if (sistema) sistema.style.display = "flex";
+        esconderTelaBloqueio();
         mostrarSecao("dashboard");
         initializeTheme();
         await carregarConfiguracoesSistema();
         carregarDadosIniciais();
       } else if (cadastroVisivel) {
-        // Veio do cadastro - o fluxo principal já está tratando
-        // Apenas garante que dados estejam carregados se o sistema já estiver visível
-        if (sistema && sistema.style.display === "flex") {
-          carregarDadosIniciais();
-        }
+        if (sistema && sistema.style.display === "flex") carregarDadosIniciais();
       }
     } catch (erro) {
+      if (erro.code === 'EMPRESA_BLOQUEADA') {
+        await auth.signOut();
+        mostrarTelaBloqueio(erro.message, erro.data?.status);
+        return;
+      }
       console.error("Erro ao inicializar sessão:", erro);
     }
   } else {

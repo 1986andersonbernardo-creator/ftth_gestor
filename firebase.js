@@ -21,3 +21,5 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 
 const functions = firebase.functions();
+
+const storage = firebase.storage();
