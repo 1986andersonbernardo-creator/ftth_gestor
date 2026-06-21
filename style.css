@@ -589,27 +589,30 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-md) 0 var(--space-xl);
+  padding: var(--space-lg) var(--space-sm) var(--space-xl);
   border-bottom: 1px solid var(--border-light);
   margin-bottom: var(--space-lg);
 }
 
 .logoSidebar {
-  width: 64px;
+  width: 180px;
   height: auto;
+  max-height: 180px;
   object-fit: contain;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-md);
+  display: block;
 }
 
 .sidebarTop h4 {
   font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.5px;
+  line-height: 1.3;
 }
 
 .sidebarNav {

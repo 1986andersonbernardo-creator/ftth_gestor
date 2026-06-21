@@ -626,10 +626,26 @@
     .sa-chart-card canvas { max-height: 280px; }
     .sa-chart-full { grid-column: 1 / -1; }
 
+    /* ===== RESPONSIVE TABLES ===== */
+    .sa-responsive-cell {
+      display: none;
+    }
+    @media (max-width: 768px) {
+      .sa-hide-mobile { display: none !important; }
+    }
+    @media (max-width: 480px) {
+      .sa-hide-small { display: none !important; }
+    }
+
     /* ===== RESPONSIVE ===== */
+    @media (max-width: 1200px) {
+      .sa-stats-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+    }
+
     @media (max-width: 1024px) {
       .sa-charts-grid { grid-template-columns: 1fr; }
-      .sa-stats-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+      .sa-stats-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+      .sa-table { min-width: 650px; }
     }
 
     @media (max-width: 768px) {
@@ -640,24 +656,57 @@
       .sa-sidebar.open { transform: translateX(0); }
       .sa-main {
         margin-left: 0;
-        padding: 20px 16px;
+        padding: 20px 12px;
         padding-top: 76px;
       }
       .sa-topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
-      .sa-stats-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-      .sa-stat-card { padding: 16px; }
-      .sa-stat-card .sa-stat-value { font-size: 22px; }
+      .sa-topbar-left h1 { font-size: 20px; }
+      .sa-topbar-right { width: 100%; }
+      .sa-topbar-user { width: 100%; justify-content: center; }
+      .sa-stats-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
+      }
+      .sa-stat-card { padding: 14px; }
+      .sa-stat-card .sa-stat-icon { width: 36px; height: 36px; font-size: 16px; margin-bottom: 10px; }
+      .sa-stat-card .sa-stat-value { font-size: 20px; }
+      .sa-stat-card .sa-stat-label { font-size: 11px; }
+      .sa-stat-card .sa-stat-sub { font-size: 11px; }
       .sa-toolbar { flex-direction: column; }
       .sa-toolbar input, .sa-toolbar select { width: 100%; min-width: auto; }
       .sa-form-row { grid-template-columns: 1fr; }
       .sa-section-header { flex-direction: column; align-items: flex-start; }
       .sa-modal { max-width: 100%; margin: 10px; }
+      .sa-table { min-width: 500px; font-size: 13px; }
+      .sa-table thead th, .sa-table tbody td { padding: 10px 12px; font-size: 12px; }
+      .sa-charts-grid { gap: 12px; }
+      .sa-chart-card { padding: 16px; }
+      .sa-chart-card h3 { font-size: 14px; }
+      .sa-config-grid { grid-template-columns: 1fr !important; }
+      .sa-section-header h2 { font-size: 17px; }
     }
 
     @media (max-width: 480px) {
-      .sa-stats-grid { grid-template-columns: 1fr 1fr; }
-      .sa-stat-card .sa-stat-value { font-size: 18px; }
+      .sa-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      .sa-stat-card { padding: 12px; }
+      .sa-stat-card .sa-stat-icon { width: 32px; height: 32px; font-size: 14px; margin-bottom: 8px; }
+      .sa-stat-card .sa-stat-value { font-size: 17px; }
+      .sa-stat-card .sa-stat-label { font-size: 10px; }
+      .sa-stat-card .sa-stat-sub { font-size: 10px; }
       .sa-sidebar { width: 100%; }
+      .sa-topbar-left h1 { font-size: 18px; }
+      .sa-table { min-width: 400px; font-size: 12px; }
+      .sa-table thead th, .sa-table tbody td { padding: 8px 10px; font-size: 11px; }
+      .sa-action-btn { width: 28px; height: 28px; font-size: 12px; }
+      .sa-main { padding: 20px 8px; padding-top: 72px; }
+      .sa-pagination { flex-wrap: wrap; gap: 6px; }
+      .sa-page-btn { padding: 6px 10px; font-size: 11px; }
+      .sa-page-info { font-size: 11px; }
+      .sa-stat-card .sa-stat-bg-icon { display: none; }
+      #sa-dashboard-stats { grid-template-columns: repeat(2, 1fr); }
     }
 
     /* ===== OCCUPATION OVERLAY ===== */
@@ -919,12 +968,13 @@
                 <tr>
                   <th>Empresa</th>
                   <th>Responsável</th>
-                  <th>WhatsApp</th>
-                  <th>E-mail</th>
+                  <th class="sa-hide-small">WhatsApp</th>
+                  <th class="sa-hide-mobile">E-mail</th>
                   <th>Plano</th>
                   <th>Status</th>
-                  <th>Cadastro</th>
-                  <th>Último Login</th>
+                  <th class="sa-hide-small">Cadastro</th>
+                  <th class="sa-hide-mobile">Último Login</th>
+                  <th>Clientes</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -1700,6 +1750,17 @@
           }
         });
         saState.empresas = empresas;
+        
+        // Buscar contagem de clientes para cada empresa
+        const clientesSnap = await db.collection('clientes').get();
+        const clientesCount = {};
+        clientesSnap.forEach(doc => {
+          const c = doc.data();
+          const tenantId = c.tenantId || 'default';
+          clientesCount[tenantId] = (clientesCount[tenantId] || 0) + 1;
+        });
+        saState.clientesCount = clientesCount;
+        
         renderizarEmpresas();
       } catch (e) {
         console.error('Erro ao carregar empresas:', e);
@@ -1731,22 +1792,26 @@
 
       const tbody = document.getElementById('sa-lista-empresas');
       if (pageItems.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--sa-text-muted);padding:40px;">Nenhuma empresa encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--sa-text-muted);padding:40px;">Nenhuma empresa encontrada</td></tr>';
       } else {
         tbody.innerHTML = pageItems.map(e => {
           const dataCad = formatDate(e.criadoEm);
           const ultimoLogin = formatDate(e.ultimoLogin);
           const wa = e.whatsappPrincipal || '-';
           const waLink = wa !== '-' ? 'https://wa.me/55' + wa.replace(/\D/g, '') : '#';
+          // Get client count for this empresa (by tenantId or id)
+          const tenantId = e.tenantId || e.id;
+          const qntClientes = saState.clientesCount && saState.clientesCount[tenantId] ? saState.clientesCount[tenantId] : 0;
           return '<tr>' +
             '<td><strong>' + (e.nomeEmpresa || '-') + '</strong></td>' +
             '<td>' + (e.responsavel || '-') + '</td>' +
-            '<td>' + wa + '</td>' +
-            '<td>' + (e.email || '-') + '</td>' +
+            '<td class="sa-hide-small">' + wa + '</td>' +
+            '<td class="sa-hide-mobile">' + (e.email || '-') + '</td>' +
             '<td>' + (e.plano || '-') + '</td>' +
             '<td><span class="sa-badge sa-badge-' + statusClass(e.status) + '">' + (e.status || '-') + '</span></td>' +
-            '<td>' + dataCad + '</td>' +
-            '<td>' + ultimoLogin + '</td>' +
+            '<td class="sa-hide-small">' + dataCad + '</td>' +
+            '<td class="sa-hide-mobile">' + ultimoLogin + '</td>' +
+            '<td style="text-align:center;font-weight:700;font-size:16px;color:var(--sa-primary);">' + qntClientes + '</td>' +
             '<td><div class="sa-actions">' +
             '<button class="sa-action-btn sa-action-view" onclick="visualizarEmpresa(\'' + e.id + '\')" title="Visualizar"><i class="fas fa-eye"></i></button>' +
             '<button class="sa-action-btn sa-action-edit" onclick="editarEmpresa(\'' + e.id + '\')" title="Editar"><i class="fas fa-pencil"></i></button>' +

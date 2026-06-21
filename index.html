@@ -185,7 +185,7 @@
 
     <aside class="sidebar" id="mainSidebar">
       <div class="sidebarTop">
-        <img src="img/logo.png" class="logoSidebar" id="logoSidebar" alt="ControlISP Pro" style="width:42px;height:42px;border-radius:10px;object-fit:cover;">
+        <img src="img/logo.png" class="logoSidebar" id="logoSidebar" alt="ControlISP Pro">
         <h4>ControlISP</h4>
       </div>
 
@@ -281,7 +281,6 @@
           <div class="skeleton-card"></div>
           <div class="skeleton-card"></div>
           <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
         </div>
 
         <!-- Premium KPI Cards -->
@@ -362,21 +361,19 @@
             </div>
           </div>
 
-          <!-- Card 5 - Novos Clientes -->
+          <!-- Card 5 - Ticket Médio -->
           <div class="card card-premium card-gradient-cyan">
             <div class="card-header">
               <div class="cardIcon">
-                <i class="fas fa-user-plus"></i>
+                <i class="fas fa-cart-shopping"></i>
               </div>
-              <span class="card-badge">Mês</span>
+              <span class="card-badge">Indicador</span>
             </div>
             <div class="card-body">
-              <h3>Novos Clientes</h3>
-              <h2 id="novosClientesMes">0</h2>
-              <div class="card-trend" id="trendNovosClientes">
-                <span class="trend-icon"><i class="fas fa-arrow-up"></i></span>
-                <span class="trend-value">+0</span>
-                <span class="trend-label">este mês</span>
+              <h3>Ticket Médio</h3>
+              <h2 id="ticketMedioDashboard">R$ 0,00</h2>
+              <div class="card-trend">
+                <span class="trend-label">faturamento / clientes ativos</span>
               </div>
             </div>
           </div>
@@ -400,36 +397,21 @@
             </div>
           </div>
 
-          <!-- Card 7 - Chamados Abertos -->
+          <!-- Card 7 - Faturamento Anual -->
           <div class="card card-premium card-gradient-amber">
             <div class="card-header">
               <div class="cardIcon">
-                <i class="fas fa-headset"></i>
+                <i class="fas fa-calendar-year"></i>
               </div>
-              <span class="card-badge">Suporte</span>
+              <span class="card-badge">Últimos 12 meses</span>
             </div>
             <div class="card-body">
-              <h3>Chamados Abertos</h3>
-              <h2 id="chamadosAbertos">0</h2>
-              <div class="card-trend">
-                <span class="trend-label">últimos 30 dias</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 8 - Tickets Resolvidos -->
-          <div class="card card-premium card-gradient-teal">
-            <div class="card-header">
-              <div class="cardIcon">
-                <i class="fas fa-check-double"></i>
-              </div>
-              <span class="card-badge">Suporte</span>
-            </div>
-            <div class="card-body">
-              <h3>Tickets Resolvidos</h3>
-              <h2 id="ticketsResolvidos">0</h2>
-              <div class="card-trend">
-                <span class="trend-label">últimos 30 dias</span>
+              <h3>Faturamento Anual</h3>
+              <h2 id="faturamentoAnual">R$ 0,00</h2>
+              <div class="card-trend" id="trendFaturamentoAnual">
+                <span class="trend-icon"><i class="fas fa-arrow-up"></i></span>
+                <span class="trend-value">+0%</span>
+                <span class="trend-label">vs. período anterior</span>
               </div>
             </div>
           </div>

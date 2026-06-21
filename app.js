@@ -197,8 +197,6 @@ function carregarProviderData() {
   providerRef.onSnapshot((doc) => {
     const providerNameEl = document.getElementById("providerNameText");
     const providerLogoEl = document.getElementById("providerLogo");
-    const sidebarLogoEl = document.getElementById("logoSidebar");
-    const loginLogoEls = document.querySelectorAll(".logoLogin");
 
     if (doc.exists) {
       const data = doc.data();
@@ -208,16 +206,13 @@ function carregarProviderData() {
         providerNameEl.textContent = "Meu Provedor";
       }
 
+      // Apenas o logo do provedor (topbar) é alterado
+      // Sidebar e login mantêm a logo do ControlISP
       if (data.logoUrl) {
         const logoUrl = data.logoUrl;
-        [providerLogoEl, sidebarLogoEl].forEach(el => {
-          if (el) { el.src = logoUrl; el.onerror = function() { this.src = "img/logo.png"; }; }
-        });
-        loginLogoEls.forEach(el => { el.src = logoUrl; el.onerror = function() { this.src = "img/logo.png"; }; });
+        if (providerLogoEl) { providerLogoEl.src = logoUrl; providerLogoEl.onerror = function() { this.src = "img/logo.png"; }; }
       } else {
-        const fallback = "img/logo.png";
-        [providerLogoEl, sidebarLogoEl].forEach(el => { if (el) el.src = fallback; });
-        loginLogoEls.forEach(el => { el.src = fallback; });
+        if (providerLogoEl) providerLogoEl.src = "img/logo.png";
       }
     } else {
       if (providerNameEl) providerNameEl.textContent = "Meu Provedor";
@@ -264,63 +259,74 @@ async function criarProviderDoc() {
 async function uploadProviderLogo(event) {
   const file = event.target.files[0];
   if (!file) return;
-  const tiposPermitidos = ["image/jpeg", "image/png", "image/webp"];
+  const tiposPermitidos = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
   if (!tiposPermitidos.includes(file.type)) {
     showToast("Formato inválido. Use JPG, PNG ou WEBP.", "error", "Erro");
     return;
   }
-  if (file.size > 5 * 1024 * 1024) {
-    showToast("A imagem deve ter no máximo 5MB.", "error", "Erro");
+  if (file.size > 2 * 1024 * 1024) {
+    showToast("A imagem deve ter no máximo 2MB.", "error", "Erro");
     return;
   }
   try {
-    showToast("Enviando logo...", "info", "Upload");
+    showToast("Processando logo...", "info", "Upload");
+    
+    // Converte a imagem para Base64 (simples, sem Firebase Storage)
+    const base64 = await fileToBase64(file);
+    
+    // Comprime reduzindo qualidade se for muito grande
+    const imagemFinal = await comprimirBase64(base64, 400, 0.7);
+    
     const tenantId = getTenantId();
-    const storagePath = `logos/${tenantId}/${Date.now()}_${file.name}`;
-    const storageRef = storage.ref(storagePath);
     
-    // Compress to max 600px for better quality
-    const imagemComprimida = await comprimirImagem(file, 600);
-    const snapshot = await storageRef.put(imagemComprimida);
-    const downloadURL = await snapshot.ref.getDownloadURL();
-    
-    // Save URL to providers collection
+    // Salva diretamente no Firestore como string Base64
     await db.collection("providers").doc(tenantId).set({
-      logoUrl: downloadURL, updatedAt: new Date(), updatedBy: usuarioAtual.uid
+      logoUrl: imagemFinal,
+      logoMimeType: file.type,
+      updatedAt: new Date(),
+      updatedBy: usuarioAtual.uid
     }, { merge: true });
     
-    // Also save to empresas collection for cross-reference
+    // Também salva na empresa para compatibilidade
     try {
       await db.collection("empresas").doc(tenantId).set({
-        logoUrl: downloadURL, updatedAt: new Date()
+        logoUrl: imagemFinal,
+        updatedAt: new Date()
       }, { merge: true });
     } catch (e) {}
     
-    // Update all logo elements immediately
+    // Atualiza apenas o logo do provedor na topbar
+    // Sidebar e login mantêm a logo do ControlISP
     const providerLogoEl = document.getElementById("providerLogo");
-    const sidebarLogoEl = document.getElementById("logoSidebar");
-    const loginLogoEls = document.querySelectorAll(".logoLogin");
-    if (providerLogoEl) providerLogoEl.src = downloadURL;
-    if (sidebarLogoEl) sidebarLogoEl.src = downloadURL;
-    loginLogoEls.forEach(el => { el.src = downloadURL; });
+    if (providerLogoEl) providerLogoEl.src = imagemFinal;
     
     showToast("Logo atualizada com sucesso!", "success", "Sucesso");
     await registrarAuditoria("logo_atualizada", "Logo do provedor alterada");
   } catch (erro) {
-    console.error("Erro ao fazer upload da logo:", erro);
-    showToast("Erro ao fazer upload. Tente novamente.", "error", "Erro");
+    console.error("Erro ao salvar logo:", erro);
+    showToast("Erro ao salvar logo. Tente novamente.", "error", "Erro");
   }
   event.target.value = "";
 }
 
-function comprimirImagem(file, maxSize) {
+// Converte arquivo para Base64
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Comprime imagem Base64 para um tamanho menor
+function comprimirBase64(base64, maxSize, qualidade) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = function() {
       const canvas = document.createElement("canvas");
       let width = img.width, height = img.height;
       
-      // Only resize if larger than maxSize
       if (width > maxSize || height > maxSize) {
         if (width > height) {
           height = Math.round(height * (maxSize / width));
@@ -336,14 +342,11 @@ function comprimirImagem(file, maxSize) {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
       
-      // Use PNG for transparency, JPEG for photos
-      const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
-      canvas.toBlob((blob) => {
-        blob ? resolve(blob) : reject(new Error("Falha ao comprimir"));
-      }, outputType, 0.85);
+      const dataUrl = canvas.toDataURL("image/jpeg", qualidade);
+      resolve(dataUrl);
     };
-    img.onerror = () => reject(new Error("Falha ao carregar imagem"));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => reject(new Error("Falha ao comprimir imagem"));
+    img.src = base64;
   });
 }
 
@@ -1023,14 +1026,39 @@ function carregarDashboardPremium() {
 
     const taxaInadimplencia = faturamentoMensal > 0 ? (clientesInadimplentes / clientesAtivos * 100) : 0;
     const setText = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    // Ticket Médio = Faturamento Total / Número de Clientes Ativos
+    const ticketMedio = clientesAtivos > 0 ? faturamentoMensal / clientesAtivos : 0;
+
+    // Faturamento Anual = soma de todos os pagamentos confirmados dos últimos 12 meses
+    let faturamentoAnual = 0;
+    const umAnoAtras = new Date(dataBrasil);
+    umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1);
+    recebSnap.forEach(doc => {
+      const r = doc.data();
+      if (statusRecebido.includes(r.status)) {
+        const dataPag = r.dataPagamento ? (r.dataPagamento.toDate ? r.dataPagamento.toDate() : new Date(r.dataPagamento)) : new Date(r.vencimento);
+        if (dataPag >= umAnoAtras && dataPag <= dataBrasil) {
+          faturamentoAnual += Number(r.valor) || 0;
+        }
+      }
+    });
+    mensalidadesSnap.forEach(doc => {
+      const m = doc.data();
+      if (statusRecebido.includes(m.status)) {
+        const dataPag = m.dataPagamento ? (m.dataPagamento.toDate ? m.dataPagamento.toDate() : new Date(m.dataPagamento)) : new Date(m.vencimento);
+        if (dataPag >= umAnoAtras && dataPag <= dataBrasil) {
+          faturamentoAnual += Number(m.valor) || 0;
+        }
+      }
+    });
+
     setText("receitaRecebidaMes", "R$ " + receitaRecebidaMes.toFixed(2));
     setText("receitaPrevista", "R$ " + receitaPrevista.toFixed(2));
     setText("clientesAtivos", clientesAtivos);
     setText("clientesInadimplentes", clientesInadimplentes);
-    setText("novosClientesMes", novosClientesMes);
     setText("taxaInadimplencia", taxaInadimplencia.toFixed(1) + "%");
-    setText("chamadosAbertos", "0");
-    setText("ticketsResolvidos", "0");
+    setText("ticketMedioDashboard", "R$ " + ticketMedio.toFixed(2));
+    setText("faturamentoAnual", "R$ " + faturamentoAnual.toFixed(2));
 
     const percReceita = receitaMesPassado > 0 ? ((receitaRecebidaMes - receitaMesPassado) / receitaMesPassado * 100) : 0;
     const trendReceita = document.getElementById("trendReceitaRecebida");
@@ -1039,19 +1067,19 @@ function carregarDashboardPremium() {
     }
     const trendClientes = document.getElementById("trendClientesAtivos");
     if (trendClientes) {
-      trendClientes.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+${novosClientesMes}</span><span class="trend-label">novos este mês</span>`;
+      trendClientes.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+0</span><span class="trend-label">novos este mês</span>`;
     }
     const trendInad = document.getElementById("trendInadimplentes");
     if (trendInad) {
       trendInad.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-down"></i></span><span class="trend-value">${taxaInadimplencia.toFixed(1)}%</span><span class="trend-label">taxa de inadimplência</span>`;
     }
-    const trendNovos = document.getElementById("trendNovosClientes");
-    if (trendNovos) {
-      trendNovos.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+${novosClientesMes}</span><span class="trend-label">este mês</span>`;
-    }
     const trendTaxa = document.getElementById("trendTaxaInadimplencia");
     if (trendTaxa) {
       trendTaxa.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-down"></i></span><span class="trend-value">${taxaInadimplencia.toFixed(1)}%</span><span class="trend-label">do faturamento</span>`;
+    }
+    const trendFaturamentoAnual = document.getElementById("trendFaturamentoAnual");
+    if (trendFaturamentoAnual) {
+      trendFaturamentoAnual.innerHTML = `<span class="trend-icon"><span style="font-weight:700;font-size:13px;">R$</span></span><span class="trend-value">+${faturamentoAnual.toFixed(0)}</span><span class="trend-label">últimos 12 meses</span>`;
     }
     criarGraficos(receitaPorMes, clientesPorPlano, receitaPorPlano, clientesCadastrosMeses, inadimplenciaPorMes);
   }).catch(erro => {
