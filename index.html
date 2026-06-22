@@ -27,6 +27,10 @@
 
   <!-- APP SCRIPT -->
   <script src="app.js"></script>
+
+  <!-- DASHBOARD FINANCEIRO MODULE -->
+  <link rel="stylesheet" href="dashboard-financeiro.css">
+  <script src="dashboard-financeiro.js"></script>
 </head>
 
 <body>
@@ -497,6 +501,15 @@
       <!-- CLIENTES -->
       <section id="clientes" class="secao" style="display:none;">
         <h1>CRM de Clientes</h1>
+        <div class="filtrosFinanceiro">
+          <input type="text" id="buscaCliente" placeholder="🔍 Buscar cliente..." onkeyup="filtrarClientes()">
+          <select id="filtroStatusCliente" onchange="filtrarClientes()">
+            <option value="">Todos os status</option>
+            <option value="Ativo">✅ Ativo</option>
+            <option value="Inadimplente">⚠️ Inadimplente</option>
+            <option value="Bloqueado">🔴 Bloqueado</option>
+          </select>
+        </div>
         <div class="gridClientes">
           <input id="nome" class="input-premium" placeholder="Nome">
           <input id="cpf" class="input-premium" placeholder="CPF/CNPJ">
@@ -588,65 +601,6 @@
           </div>
         </div>
 
-        <!-- DASHBOARD FINANCEIRO - KPI CARDS -->
-        <div class="financeiroDashboard">
-          <div class="cardsFinanceiro">
-            <div class="cardFinanceiro cardPrimario">
-              <div class="cardFinaceiroHeader">
-                <h3>Faturamento do Mês</h3>
-                <span class="iconCard"><i class="fas fa-chart-line"></i></span>
-              </div>
-              <h2 id="faturamentoMes">R$ 0,00</h2>
-              <p id="faturamentoMesVariacao" class="variacao">+0% vs mês anterior</p>
-            </div>
-
-            <div class="cardFinanceiro cardSucesso">
-              <div class="cardFinaceiroHeader">
-                <h3>Total Recebido</h3>
-                <span class="iconCard"><i class="fas fa-check-circle"></i></span>
-              </div>
-              <h2 id="totalRecebido">R$ 0,00</h2>
-              <p id="recebidoQtd" class="variacao">0 cobranças pagas</p>
-            </div>
-
-            <div class="cardFinanceiro cardAviso">
-              <div class="cardFinaceiroHeader">
-                <h3>Total em Aberto</h3>
-                <span class="iconCard"><i class="fas fa-hourglass-end"></i></span>
-              </div>
-              <h2 id="totalAberto">R$ 0,00</h2>
-              <p id="abertoQtd" class="variacao">0 cobranças pendentes</p>
-            </div>
-
-            <div class="cardFinanceiro cardDespesa">
-              <div class="cardFinaceiroHeader">
-                <h3>Total de Despesas</h3>
-                <span class="iconCard"><i class="fas fa-money-bills"></i></span>
-              </div>
-              <h2 id="totalDespesas">R$ 0,00</h2>
-              <p id="despesasQtd" class="variacao">0 despesas este mês</p>
-            </div>
-
-            <div class="cardFinanceiro cardLucro">
-              <div class="cardFinaceiroHeader">
-                <h3>Lucro Líquido</h3>
-                <span class="iconCard"><i class="fas fa-arrow-trend-up"></i></span>
-              </div>
-              <h2 id="lucroLiquido">R$ 0,00</h2>
-              <p id="lucroVariacao" class="variacao">Resultado do mês</p>
-            </div>
-
-            <div class="cardFinanceiro cardInadimplencia">
-              <div class="cardFinaceiroHeader">
-                <h3>Inadimplentes</h3>
-                <span class="iconCard"><i class="fas fa-triangle-exclamation"></i></span>
-              </div>
-              <h2 id="totalInadimplentes">0</h2>
-              <p id="valorInadimplentes" class="variacao">R$ 0,00 em atraso</p>
-            </div>
-          </div>
-        </div>
-
         <!-- TABS DE NAVEGAÇÃO -->
         <div class="financeiroTabs">
           <button class="tabBtn active" onclick="mostrarAbaFinanceira('contas-receber', event)">
@@ -660,6 +614,9 @@
           </button>
           <button class="tabBtn" onclick="mostrarAbaFinanceira('inadimplencia', event)">
             <i class="fas fa-triangle-exclamation"></i> Inadimplência
+          </button>
+          <button class="tabBtn" onclick="mostrarAbaFinanceira('visao-meses', event)">
+            <i class="fas fa-calendar-alt"></i> Visão por Meses
           </button>
         </div>
 
@@ -823,6 +780,11 @@
               <tbody id="listaInadimplentes"></tbody>
             </table>
           </div>
+        </div>
+
+        <!-- VISÃO POR MESES - CALENDÁRIO FINANCEIRO -->
+        <div id="visao-meses" class="abaFinanceira" style="display:none;">
+          <div id="financeiro-calendario"></div>
         </div>
 
       </section>

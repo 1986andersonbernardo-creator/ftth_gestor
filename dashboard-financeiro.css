@@ -1,0 +1,817 @@
+/* =============================================
+   CONTROLISP - DASHBOARD FINANCEIRO
+   Módulo de Gestão Financeira e Assinaturas
+   ============================================= */
+
+/* =============================================
+   1. SEÇÃO PRINCIPAL
+   ============================================= */
+#dashboard-financeiro {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.df-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.df-header-left h1 {
+  font-size: clamp(22px, 2.5vw, 32px);
+  font-weight: 800;
+  background: var(--text-gradient, linear-gradient(135deg, #60A5FA, #22D3EE));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.df-header-left h1 i {
+  -webkit-text-fill-color: initial;
+  background: var(--gradient-primary, linear-gradient(135deg, #2563EB, #7C3AED));
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  font-size: 28px;
+  padding: 10px;
+  border-radius: 12px;
+  color: #fff;
+}
+
+.df-header-left p {
+  font-size: 14px;
+  color: var(--text-muted, #94A3B8);
+  margin-top: 4px;
+}
+
+.df-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-input, rgba(15, 23, 42, 0.6));
+  padding: 8px 16px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  color: var(--text-muted, #94A3B8);
+  font-size: 13px;
+}
+
+.df-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted, #94A3B8);
+}
+
+.df-loading .df-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border, rgba(255,255,255,0.08));
+  border-top-color: var(--primary-light, #3B82F6);
+  border-radius: 50%;
+  animation: df-spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes df-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* =============================================
+   2. KPI CARDS
+   ============================================= */
+.df-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.df-kpi-card {
+  position: relative;
+  background: var(--bg-card, rgba(30, 41, 59, 0.8));
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 18px;
+  padding: 24px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.df-kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+  border-color: var(--border-hover, rgba(255,255,255,0.15));
+}
+
+.df-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+}
+
+.df-kpi-card-kpi1::before { background: linear-gradient(135deg, #3B82F6, #06B6D4); }
+.df-kpi-card-kpi2::before { background: linear-gradient(135deg, #10B981, #059669); }
+.df-kpi-card-kpi3::before { background: linear-gradient(135deg, #F59E0B, #D97706); }
+.df-kpi-card-kpi4::before { background: linear-gradient(135deg, #EF4444, #DC2626); }
+
+.df-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.df-kpi-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #94A3B8);
+  font-weight: 600;
+}
+
+.df-kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.df-kpi-card-kpi1 .df-kpi-icon { background: rgba(59,130,246,0.15); color: #60A5FA; }
+.df-kpi-card-kpi2 .df-kpi-icon { background: rgba(16,185,129,0.15); color: #34D399; }
+.df-kpi-card-kpi3 .df-kpi-icon { background: rgba(245,158,11,0.15); color: #FBBF24; }
+.df-kpi-card-kpi4 .df-kpi-icon { background: rgba(239,68,68,0.15); color: #F87171; }
+
+.df-kpi-value {
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 800;
+  color: var(--text-primary, #F8FAFC);
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+
+.df-kpi-card-kpi1 .df-kpi-value { color: #93C5FD; }
+.df-kpi-card-kpi2 .df-kpi-value { color: #6EE7B7; }
+.df-kpi-card-kpi3 .df-kpi-value { color: #FDE68A; }
+.df-kpi-card-kpi4 .df-kpi-value { color: #FCA5A5; }
+
+.df-kpi-sub {
+  font-size: 13px;
+  color: var(--text-muted, #94A3B8);
+}
+
+/* =============================================
+   3. SEÇÕES (Tabelas e Grids)
+   ============================================= */
+.df-section {
+  background: var(--bg-card, rgba(30, 41, 59, 0.8));
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.df-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.df-section-title h2 {
+  font-size: clamp(16px, 1.5vw, 20px);
+  font-weight: 700;
+  color: var(--text-primary, #F8FAFC);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.df-section-title h2 i {
+  color: var(--primary-light, #3B82F6);
+}
+
+.df-section-subtitle {
+  font-size: 13px;
+  color: var(--text-muted, #94A3B8);
+  padding: 4px 12px;
+  background: var(--bg-input, rgba(15, 23, 42, 0.6));
+  border-radius: 20px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+/* =============================================
+   4. TABELA DE PAGAMENTOS
+   ============================================= */
+.df-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.df-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.df-table thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: var(--text-muted, #94A3B8);
+  border-bottom: 2px solid var(--border, rgba(255,255,255,0.08));
+  white-space: nowrap;
+  background: rgba(0,0,0,0.15);
+}
+
+.df-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light, rgba(255,255,255,0.05));
+  color: var(--text-secondary, #CBD5E1);
+  font-size: 13px;
+}
+
+.df-table tbody tr {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.df-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.df-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Status Badges */
+.df-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.df-status-pago {
+  background: rgba(16,185,129,0.15);
+  color: #34D399;
+  border: 1px solid rgba(16,185,129,0.3);
+}
+
+.df-status-pendente {
+  background: rgba(245,158,11,0.15);
+  color: #FBBF24;
+  border: 1px solid rgba(245,158,11,0.3);
+}
+
+.df-status-atrasado {
+  background: rgba(239,68,68,0.15);
+  color: #F87171;
+  border: 1px solid rgba(239,68,68,0.3);
+}
+
+.df-dias-atraso {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.df-dias-atraso-low { background: rgba(245,158,11,0.15); color: #FBBF24; }
+.df-dias-atraso-mid { background: rgba(251,146,60,0.15); color: #FB923C; }
+.df-dias-atraso-high { background: rgba(239,68,68,0.2); color: #F87171; }
+
+.df-valor {
+  font-weight: 600;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 13px;
+}
+
+.df-empty {
+  text-align: center;
+  padding: 48px 20px !important;
+  color: var(--text-muted, #94A3B8);
+}
+
+.df-empty i {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+/* =============================================
+   5. TABS DE NAVEGAÇÃO (Status de Pagamentos / Assinaturas / Visão por Meses)
+   ============================================= */
+.df-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  background: var(--bg-secondary, #1E293B);
+  padding: 4px;
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.df-tab {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md, 10px);
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94A3B8);
+  font-family: var(--font-heading, 'Plus Jakarta Sans', sans-serif);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.df-tab:hover {
+  color: var(--text-secondary, #CBD5E1);
+  background: rgba(255,255,255,0.05);
+}
+
+.df-tab.active {
+  background: var(--bg-tertiary, #334155);
+  color: var(--text-primary, #F8FAFC);
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.df-tab.active i {
+  color: var(--primary-light, #3B82F6);
+}
+
+.df-tab-content {
+  display: none;
+  animation: df-fadeIn 0.3s ease-out;
+}
+
+.df-tab-content.active {
+  display: block;
+}
+
+@keyframes df-fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* =============================================
+   6. MODAL DE HISTÓRICO
+   ============================================= */
+.df-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-overlay, rgba(0,0,0,0.7));
+  z-index: 9999;
+  display: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.df-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  background: var(--bg-modal, rgba(15, 23, 42, 0.98));
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  border-radius: 20px;
+  padding: 32px;
+  z-index: 10000;
+  width: 90%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: none;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: df-modalIn 0.3s ease-out;
+}
+
+@keyframes df-modalIn {
+  from { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.df-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.df-modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #F8FAFC);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.df-modal-header h2 small {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-muted, #94A3B8);
+}
+
+.df-modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-tertiary, #334155);
+  color: var(--text-muted, #94A3B8);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.df-modal-close:hover {
+  background: var(--danger, #EF4444);
+  color: #fff;
+}
+
+.df-modal-body {
+  color: var(--text-secondary, #CBD5E1);
+}
+
+.df-modal-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--bg-input, rgba(15, 23, 42, 0.6));
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.df-modal-info-item label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #94A3B8);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.df-modal-info-item span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #F8FAFC);
+}
+
+/* Timeline History */
+.df-history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.df-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-left: 3px solid var(--border, rgba(255,255,255,0.08));
+  margin-bottom: 8px;
+  border-radius: 0 8px 8px 0;
+  transition: all 0.2s;
+}
+
+.df-history-item:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.df-history-item.df-history-pago {
+  border-left-color: #10B981;
+  background: rgba(16,185,129,0.05);
+}
+
+.df-history-item.df-history-pendente {
+  border-left-color: #F59E0B;
+  background: rgba(245,158,11,0.05);
+}
+
+.df-history-item.df-history-atrasado {
+  border-left-color: #EF4444;
+  background: rgba(239,68,68,0.05);
+}
+
+.df-history-competencia {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #F8FAFC);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+.df-history-status {
+  font-size: 13px;
+}
+
+.df-history-status.pago { color: #34D399; }
+.df-history-status.pendente { color: #FBBF24; }
+.df-history-status.atrasado { color: #F87171; }
+
+/* =============================================
+   7. VISÃO POR MESES (CALENDÁRIO FINANCEIRO)
+   ============================================= */
+.df-calendar-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.df-calendar {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+.df-calendar thead th {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: var(--text-muted, #94A3B8);
+  border-bottom: 2px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(0,0,0,0.15);
+  white-space: nowrap;
+}
+
+.df-calendar thead th:first-child {
+  text-align: left;
+  padding-left: 16px;
+}
+
+.df-calendar tbody td {
+  padding: 10px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light, rgba(255,255,255,0.05));
+  font-size: 13px;
+  color: var(--text-secondary, #CBD5E1);
+}
+
+.df-calendar tbody td:first-child {
+  text-align: left;
+  font-weight: 600;
+  padding-left: 16px;
+  white-space: nowrap;
+}
+
+.df-calendar tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.df-calendar-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.df-calendar-pago {
+  background: rgba(16,185,129,0.2);
+  color: #34D399;
+}
+
+.df-calendar-pendente {
+  background: rgba(245,158,11,0.2);
+  color: #FBBF24;
+}
+
+.df-calendar-atrasado {
+  background: rgba(239,68,68,0.2);
+  color: #F87171;
+}
+
+.df-calendar-sem-mensalidade {
+  color: var(--text-disabled, #64748B);
+  opacity: 0.3;
+}
+
+/* =============================================
+   8. FILTROS
+   ============================================= */
+.df-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.df-filters input,
+.df-filters select {
+  padding: 10px 14px;
+  background: var(--bg-input, rgba(15, 23, 42, 0.6));
+  border: 1.5px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: var(--radius-md, 10px);
+  color: var(--text-primary, #F8FAFC);
+  font-size: 13px;
+  font-family: var(--font-body, 'Inter', sans-serif);
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+.df-filters input:focus,
+.df-filters select:focus {
+  border-color: var(--primary-light, #3B82F6);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+
+.df-filters input::placeholder {
+  color: var(--text-disabled, #64748B);
+}
+
+.df-filters select option {
+  background: var(--bg-secondary, #1E293B);
+  color: var(--text-primary, #F8FAFC);
+}
+
+/* =============================================
+   9. RESPONSIVIDADE
+   ============================================= */
+@media (max-width: 768px) {
+  #dashboard-financeiro {
+    padding: 16px;
+  }
+
+  .df-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+    gap: 12px;
+  }
+
+  .df-kpi-card {
+    padding: 16px;
+  }
+
+  .df-kpi-value {
+    font-size: 20px;
+  }
+
+  .df-section {
+    padding: 16px;
+  }
+
+  .df-tab {
+    min-width: auto;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .df-table thead th,
+  .df-table tbody td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .df-status {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .df-modal {
+    padding: 20px;
+    width: 95%;
+  }
+
+  .df-modal-info {
+    grid-template-columns: 1fr;
+  }
+
+  .df-calendar thead th,
+  .df-calendar tbody td {
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+
+  .df-calendar-status {
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+
+  .df-header-left h1 {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  #dashboard-financeiro {
+    padding: 12px;
+  }
+
+  .df-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .df-kpi-card {
+    padding: 12px;
+  }
+
+  .df-kpi-value {
+    font-size: 16px;
+  }
+
+  .df-kpi-label {
+    font-size: 10px;
+  }
+
+  .df-kpi-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .df-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .df-section-title h2 {
+    font-size: 14px;
+  }
+
+  .df-table thead th,
+  .df-table tbody td {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .df-tabs {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .df-tab {
+    font-size: 11px;
+    padding: 6px 10px;
+    min-width: auto;
+  }
+
+  .df-tab span.df-tab-label {
+    display: none;
+  }
+}
+
+/* =============================================
+   10. UTILITIES
+   ============================================= */
+.df-text-success { color: #34D399; }
+.df-text-warning { color: #FBBF24; }
+.df-text-danger { color: #F87171; }
+.df-text-muted { color: var(--text-muted, #94A3B8); }
+.df-font-mono { font-family: var(--font-mono, 'JetBrains Mono'), monospace; }
+.df-mt-2 { margin-top: 8px; }
+.df-mb-2 { margin-bottom: 8px; }
+.df-flex { display: flex; align-items: center; gap: 8px; }

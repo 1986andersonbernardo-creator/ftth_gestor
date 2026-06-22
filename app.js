@@ -25,6 +25,9 @@ let usuarioAtual = {
   tenantId: null
 };
 
+// Expor para módulos externos (dashboard-financeiro)
+window.usuarioAtual = usuarioAtual;
+
 let clientesWhatsApp = [];
 let clientesSelecionadosWhatsApp = new Set();
 let configuracoesWhatsApp = {
@@ -873,6 +876,11 @@ function mostrarSecao(id) {
   const el = document.getElementById(id);
   if (el) el.style.display = "block";
 
+  // Initialize ModuloFinanceiro when Financeiro section is shown
+  if (id === 'financeiro' && typeof ModuloFinanceiro !== 'undefined') {
+    ModuloFinanceiro.init();
+  }
+
   // Update sidebar active
   document.querySelectorAll('.sidebar-nav-item').forEach(item => {
     item.classList.remove('active');
@@ -1212,8 +1220,13 @@ function salvarCliente() {
 function carregarClientes() {
   if (!auth.currentUser) { console.error("Usuário não está logado!"); return; }
   if (clientesListener) clientesListener();
-  let query = db.collection("clientes").where("tenantId", "==", getTenantId()).orderBy("nome").limit(configuracoesSistema.paginacao.clientes);
+  
+  const tenantId = getTenantId();
+  
+  // Try with index (tenantId + nome)
+  let query = db.collection("clientes").where("tenantId", "==", tenantId).orderBy("nome").limit(configuracoesSistema.paginacao.clientes);
   if (clientesLastDoc) query = query.startAfter(clientesLastDoc);
+  
   clientesListener = query.onSnapshot((snapshot) => {
     const tabela = document.getElementById("listaClientes");
     if (!tabela) return;
@@ -1234,7 +1247,47 @@ function carregarClientes() {
     if (faturamentoMensalEl) faturamentoMensalEl.innerText = "R$ " + faturamentoTotal.toFixed(2);
     const ticketMedioEl = document.getElementById("ticketMedio");
     if (ticketMedioEl) ticketMedioEl.innerText = "R$ " + (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
-  }, (erro) => { console.error("Erro ao carregar clientes:", erro); });
+  }, (erro) => {
+    console.error("Erro ao carregar clientes:", erro);
+    // Fallback: try without orderBy if index is missing
+    if (erro.code === 'failed-precondition' || erro.message?.includes('index')) {
+      console.warn("Tentando carregar sem ordenação (índice não encontrado)...");
+      showToast("Carregando clientes sem ordenação...", "info", "Aviso");
+      if (clientesListener) clientesListener();
+      const fallbackQuery = db.collection("clientes").where("tenantId", "==", tenantId).limit(configuracoesSistema.paginacao.clientes);
+      clientesListener = fallbackQuery.onSnapshot((snapshot) => {
+        const tabela = document.getElementById("listaClientes");
+        if (!tabela) return;
+        tabela.innerHTML = "";
+        let totalClientes = 0, clientesAtivos = 0, faturamentoTotal = 0;
+        const clientes = [];
+        snapshot.forEach((doc) => {
+          const cliente = doc.data();
+          clientes.push({ doc, cliente });
+          totalClientes++;
+          if (cliente.status === "Ativo") { clientesAtivos++; faturamentoTotal += Number(cliente.valor) || 0; }
+        });
+        // Sort manually by name
+        clientes.sort((a, b) => (a.cliente.nome || "").localeCompare(b.cliente.nome || ""));
+        clientes.forEach(({ doc, cliente }) => {
+          tabela.innerHTML += `<tr><td>${cliente.nome || ""}</td><td>${cliente.telefone || ""}</td><td>${cliente.status || ""}</td><td>${cliente.plano || ""}</td><td>${cliente.vencimento || ""}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarCliente('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('cliente', '${doc.id}', '${cliente.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
+        });
+        const totalClientesEl = document.getElementById("totalClientes");
+        if (totalClientesEl) totalClientesEl.innerText = totalClientes;
+        const clientesAtivosEl = document.getElementById("clientesAtivos");
+        if (clientesAtivosEl) clientesAtivosEl.innerText = clientesAtivos;
+        const faturamentoMensalEl = document.getElementById("faturamentoMensal");
+        if (faturamentoMensalEl) faturamentoMensalEl.innerText = "R$ " + faturamentoTotal.toFixed(2);
+        const ticketMedioEl = document.getElementById("ticketMedio");
+        if (ticketMedioEl) ticketMedioEl.innerText = "R$ " + (clientesAtivos > 0 ? (faturamentoTotal / clientesAtivos).toFixed(2) : "0.00");
+      }, (erro2) => {
+        console.error("Erro no fallback:", erro2);
+        showToast("Erro ao carregar clientes. Verifique o console (F12).", "error", "Erro");
+      });
+    } else {
+      showToast("Erro ao carregar clientes. Verifique o console (F12).", "error", "Erro");
+    }
+  });
 }
 
 async function editarCliente(id) {
@@ -1471,11 +1524,11 @@ function calcularDataVencimento(diaVencimento, dataReferencia) { const data = ne
 function verificarGeracaoMensalidades() { if (new Date().getDate() === 1) gerarMensalidadesNovoMes(); }
 
 function marcarMensalidadePaga(mensalidadeId) {
-  db.collection("mensalidades").doc(mensalidadeId).update(secureUpdate({ status: "Pago", dataPagamento: new Date() })).then(() => { showToast("Mensalidade paga!", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); atualizarFluxoCaixa(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  db.collection("mensalidades").doc(mensalidadeId).update(secureUpdate({ status: "Pago", dataPagamento: new Date() })).then(() => { showToast("Mensalidade paga!", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); atualizarFluxoCaixa(); if (typeof ModuloFinanceiro !== 'undefined' && ModuloFinanceiro.loadData) ModuloFinanceiro.loadData(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function marcarMensalidadeAtrasada(mensalidadeId) {
-  db.collection("mensalidades").doc(mensalidadeId).update(secureUpdate({ status: "Atrasado" })).then(() => { showToast("Mensalidade atrasada!", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  db.collection("mensalidades").doc(mensalidadeId).update(secureUpdate({ status: "Atrasado" })).then(() => { showToast("Mensalidade atrasada!", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); if (typeof ModuloFinanceiro !== 'undefined' && ModuloFinanceiro.loadData) ModuloFinanceiro.loadData(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 // ===========================
@@ -1532,6 +1585,17 @@ function filtrarRecebimentos() {
     const cliente = linha.cells[0].textContent.toLowerCase();
     const s = linha.cells[3].textContent;
     linha.style.display = cliente.includes(busca) && (status === "" || s.includes(status)) ? "" : "none";
+  });
+}
+
+function filtrarClientes() {
+  const busca = document.getElementById("buscaCliente").value.toLowerCase();
+  const status = document.getElementById("filtroStatusCliente").value;
+  document.querySelectorAll("#listaClientes tr").forEach(linha => {
+    if (linha.cells.length === 0) return;
+    const nome = linha.cells[0].textContent.toLowerCase();
+    const s = linha.cells[2].textContent;
+    linha.style.display = nome.includes(busca) && (status === "" || s.includes(status)) ? "" : "none";
   });
 }
 
@@ -1713,7 +1777,7 @@ function enviarCobranca(nome, valor, vencimento, dias) {
 }
 
 function marcarComoPago(id) {
-  db.collection("recebimentos").doc(id).update(secureUpdate({ status: "Pago" })).then(() => { showToast("Marcado como pago!", "success"); carregarInadimplentes(); carregarFinanceiro(); carregarDashboardPremium(); }).catch(e => showToast("Erro: " + e.message, "error"));
+  db.collection("recebimentos").doc(id).update(secureUpdate({ status: "Pago" })).then(() => { showToast("Marcado como pago!", "success"); carregarInadimplentes(); carregarFinanceiro(); carregarDashboardPremium(); if (typeof ModuloFinanceiro !== 'undefined' && ModuloFinanceiro.loadData) ModuloFinanceiro.loadData(); }).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
 // ===========================
@@ -1726,6 +1790,7 @@ function mostrarAbaFinanceira(aba, event) {
   if (el) { el.style.display = "block"; el.classList.add("ativa"); }
   document.querySelectorAll(".tabBtn").forEach(btn => { btn.classList.remove("active"); if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(aba)) btn.classList.add("active"); });
   if (aba === "fluxo-caixa") atualizarFluxoCaixa();
+  if (aba === "visao-meses" && typeof ModuloFinanceiro !== 'undefined' && ModuloFinanceiro.loadData) ModuloFinanceiro.loadData();
 }
 
 function logout() {
