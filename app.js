@@ -1,6 +1,6 @@
-// ===========================
+﻿// ===========================
 // CONTROLISP - APP PRINCIPAL v4.0
-// Versão Premium SaaS - Logo Fix + Block System
+// VersÃ£o Premium SaaS - Logo Fix + Block System
 // ===========================
 
 // ===========================
@@ -25,7 +25,7 @@ let usuarioAtual = {
   tenantId: null
 };
 
-// Expor para módulos externos (dashboard-financeiro)
+// Expor para mÃ³dulos externos (dashboard-financeiro)
 window.usuarioAtual = usuarioAtual;
 
 let clientesWhatsApp = [];
@@ -75,7 +75,7 @@ async function carregarUsuarioAtual() {
     if (tokenResult.claims.role) usuarioAtual.role = tokenResult.claims.role;
     if (tokenResult.claims.tenantId) usuarioAtual.tenantId = tokenResult.claims.tenantId;
   } catch (erro) {
-    console.warn('Não foi possível obter custom claims:', erro);
+    console.warn('NÃ£o foi possÃ­vel obter custom claims:', erro);
   }
 
   try {
@@ -209,8 +209,8 @@ function carregarProviderData() {
         providerNameEl.textContent = "Meu Provedor";
       }
 
-      // Apenas o logo do provedor (topbar) é alterado
-      // Sidebar e login mantêm a logo do ControlISP
+      // Apenas o logo do provedor (topbar) Ã© alterado
+      // Sidebar e login mantÃªm a logo do ControlISP
       if (data.logoUrl) {
         const logoUrl = data.logoUrl;
         if (providerLogoEl) { providerLogoEl.src = logoUrl; providerLogoEl.onerror = function() { this.src = "img/logo.png"; }; }
@@ -264,11 +264,11 @@ async function uploadProviderLogo(event) {
   if (!file) return;
   const tiposPermitidos = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
   if (!tiposPermitidos.includes(file.type)) {
-    showToast("Formato inválido. Use JPG, PNG ou WEBP.", "error", "Erro");
+    showToast("Formato invÃ¡lido. Use JPG, PNG ou WEBP.", "error", "Erro");
     return;
   }
   if (file.size > 2 * 1024 * 1024) {
-    showToast("A imagem deve ter no máximo 2MB.", "error", "Erro");
+    showToast("A imagem deve ter no mÃ¡ximo 2MB.", "error", "Erro");
     return;
   }
   try {
@@ -290,7 +290,7 @@ async function uploadProviderLogo(event) {
       updatedBy: usuarioAtual.uid
     }, { merge: true });
     
-    // Também salva na empresa para compatibilidade
+    // TambÃ©m salva na empresa para compatibilidade
     try {
       await db.collection("empresas").doc(tenantId).set({
         logoUrl: imagemFinal,
@@ -299,7 +299,7 @@ async function uploadProviderLogo(event) {
     } catch (e) {}
     
     // Atualiza apenas o logo do provedor na topbar
-    // Sidebar e login mantêm a logo do ControlISP
+    // Sidebar e login mantÃªm a logo do ControlISP
     const providerLogoEl = document.getElementById("providerLogo");
     if (providerLogoEl) providerLogoEl.src = imagemFinal;
     
@@ -355,10 +355,10 @@ function comprimirBase64(base64, maxSize, qualidade) {
 
 function editarNomeProvedor() {
   const currentName = document.getElementById("providerNameText")?.textContent || "Meu Provedor";
-  const novoNome = prompt("Digite o nome do seu provedor (máx. 50 caracteres):", currentName);
+  const novoNome = prompt("Digite o nome do seu provedor (mÃ¡x. 50 caracteres):", currentName);
   if (novoNome === null || novoNome.trim() === "") return;
   const nomeLimpo = sanitizarInput(novoNome).substring(0, 50);
-  if (!nomeLimpo) { showToast("O nome não pode ficar vazio.", "error", "Erro"); return; }
+  if (!nomeLimpo) { showToast("O nome nÃ£o pode ficar vazio.", "error", "Erro"); return; }
   db.collection("providers").doc(getTenantId()).set({
     providerName: nomeLimpo, updatedAt: new Date(), updatedBy: usuarioAtual.uid
   }, { merge: true })
@@ -430,7 +430,7 @@ async function registrarAuditLog(empresaId, acao, detalhes) {
 // ===========================
 
 let configuracoesSistema = {
-  planos: { "Básico": 49.90, "Pro": 99.90, "Enterprise": 199.90 },
+  planos: { "BÃ¡sico": 49.90, "Pro": 99.90, "Enterprise": 199.90 },
   paginacao: { clientes: 20, recebimentos: 20, despesas: 20 }
 };
 
@@ -455,7 +455,7 @@ function showToast(message, type = 'info', title = '') {
     info: 'fa-info-circle', warning: 'fa-exclamation-triangle'
   };
   const titles = {
-    success: 'Sucesso', error: 'Erro', warning: 'Atenção', info: 'Informação'
+    success: 'Sucesso', error: 'Erro', warning: 'AtenÃ§Ã£o', info: 'InformaÃ§Ã£o'
   };
 
   const toast = document.createElement('div');
@@ -589,7 +589,7 @@ async function fazerLogin() {
     mostrarSecao("dashboard");
     initializeTheme();
     await carregarConfiguracoesSistema();
-    await registrarAuditoria("login", "Usuário fez login");
+    await registrarAuditoria("login", "UsuÃ¡rio fez login");
     carregarDadosIniciais();
   } catch (erro) {
     if (erro.code === 'EMPRESA_BLOQUEADA') return;
@@ -649,12 +649,12 @@ function validarEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); 
 
 function tratarErroFirebase(erro) {
   const codigo = erro.code || erro.message || '';
-  if (codigo.includes('email-already-in-use') || codigo.includes('EMAIL_EXISTS')) return 'Este e-mail já está cadastrado.';
+  if (codigo.includes('email-already-in-use') || codigo.includes('EMAIL_EXISTS')) return 'Este e-mail jÃ¡ estÃ¡ cadastrado.';
   if (codigo.includes('weak-password') || codigo.includes('WEAK_PASSWORD')) return 'Senha muito fraca. Use 6+ caracteres.';
-  if (codigo.includes('invalid-email') || codigo.includes('INVALID_EMAIL')) return 'Formato de e-mail inválido.';
-  if (codigo.includes('network-error') || codigo.includes('NETWORK_ERROR')) return 'Erro de conexão. Verifique sua internet.';
+  if (codigo.includes('invalid-email') || codigo.includes('INVALID_EMAIL')) return 'Formato de e-mail invÃ¡lido.';
+  if (codigo.includes('network-error') || codigo.includes('NETWORK_ERROR')) return 'Erro de conexÃ£o. Verifique sua internet.';
   if (codigo.includes('too-many-requests')) return 'Muitas tentativas. Aguarde alguns minutos.';
-  if (codigo.includes('user-not-found') || codigo.includes('USER_NOT_FOUND')) return 'Usuário não encontrado.';
+  if (codigo.includes('user-not-found') || codigo.includes('USER_NOT_FOUND')) return 'UsuÃ¡rio nÃ£o encontrado.';
   if (codigo.includes('wrong-password') || codigo.includes('INVALID_PASSWORD')) return 'Senha incorreta.';
   if (codigo.includes('user-disabled') || codigo.includes('USER_DISABLED')) return 'Conta desabilitada. Entre em contato com o suporte.';
   if (codigo === 'EMPRESA_BLOQUEADA') return 'Conta bloqueada. Entre em contato com o suporte.';
@@ -675,12 +675,12 @@ async function cadastrarUsuario() {
     const aceitoTermos = document.getElementById('cad_termos').checked;
 
     if (!nomeProvedor) throw new Error('Informe o nome do provedor.');
-    if (!whatsapp || whatsapp.length < 10) throw new Error('WhatsApp inválido.');
+    if (!whatsapp || whatsapp.length < 10) throw new Error('WhatsApp invÃ¡lido.');
     if (!cidade) throw new Error('Informe a cidade.');
     if (!nome) throw new Error('Informe o nome do administrador.');
     if (!email) throw new Error('Informe o e-mail.');
     if (!senha || senha.length < 8) throw new Error('Senha deve ter 8+ caracteres.');
-    if (senha !== confirmarSenha) throw new Error('Senhas não conferem.');
+    if (senha !== confirmarSenha) throw new Error('Senhas nÃ£o conferem.');
     if (!aceitoTermos) throw new Error('Aceite os Termos de Uso.');
 
     const userCredential = await auth.createUserWithEmailAndPassword(email, senha);
@@ -778,7 +778,7 @@ function atualizarForcaSenhaCadastro() {
   if (/[^a-zA-Z0-9]/.test(senha)) forca += 15;
   if (senha.length === 0) { forca = 0; texto = ''; cor = 'transparent'; }
   else if (forca <= 25) { texto = 'Fraca'; cor = '#EF4444'; }
-  else if (forca <= 50) { texto = 'Média'; cor = '#F59E0B'; }
+  else if (forca <= 50) { texto = 'MÃ©dia'; cor = '#F59E0B'; }
   else if (forca <= 75) { texto = 'Boa'; cor = '#34D399'; }
   else { texto = 'Forte'; cor = '#10B981'; }
   indicator.style.width = forca + '%';
@@ -868,7 +868,7 @@ function carregarDadosIniciais() {
 
 function mostrarSecao(id) {
   if (id === 'administracao' && !isMasterAdmin()) {
-    showToast('Acesso negado.', 'error', 'Permissão');
+    showToast('Acesso negado.', 'error', 'PermissÃ£o');
     return;
   }
 
@@ -1034,10 +1034,10 @@ function carregarDashboardPremium() {
 
     const taxaInadimplencia = faturamentoMensal > 0 ? (clientesInadimplentes / clientesAtivos * 100) : 0;
     const setText = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-    // Ticket Médio = Faturamento Total / Número de Clientes Ativos
+    // Ticket MÃ©dio = Faturamento Total / NÃºmero de Clientes Ativos
     const ticketMedio = clientesAtivos > 0 ? faturamentoMensal / clientesAtivos : 0;
 
-    // Faturamento Anual = soma de todos os pagamentos confirmados dos últimos 12 meses
+    // Faturamento Anual = soma de todos os pagamentos confirmados dos Ãºltimos 12 meses
     let faturamentoAnual = 0;
     const umAnoAtras = new Date(dataBrasil);
     umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1);
@@ -1071,15 +1071,15 @@ function carregarDashboardPremium() {
     const percReceita = receitaMesPassado > 0 ? ((receitaRecebidaMes - receitaMesPassado) / receitaMesPassado * 100) : 0;
     const trendReceita = document.getElementById("trendReceitaRecebida");
     if (trendReceita) {
-      trendReceita.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-${percReceita >= 0 ? 'up' : 'down'}"></i></span><span class="trend-value">${percReceita >= 0 ? '+' : ''}${percReceita.toFixed(1)}%</span><span class="trend-label">vs. mês anterior</span>`;
+      trendReceita.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-${percReceita >= 0 ? 'up' : 'down'}"></i></span><span class="trend-value">${percReceita >= 0 ? '+' : ''}${percReceita.toFixed(1)}%</span><span class="trend-label">vs. mÃªs anterior</span>`;
     }
     const trendClientes = document.getElementById("trendClientesAtivos");
     if (trendClientes) {
-      trendClientes.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+0</span><span class="trend-label">novos este mês</span>`;
+      trendClientes.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-up"></i></span><span class="trend-value">+0</span><span class="trend-label">novos este mÃªs</span>`;
     }
     const trendInad = document.getElementById("trendInadimplentes");
     if (trendInad) {
-      trendInad.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-down"></i></span><span class="trend-value">${taxaInadimplencia.toFixed(1)}%</span><span class="trend-label">taxa de inadimplência</span>`;
+      trendInad.innerHTML = `<span class="trend-icon"><i class="fas fa-arrow-down"></i></span><span class="trend-value">${taxaInadimplencia.toFixed(1)}%</span><span class="trend-label">taxa de inadimplÃªncia</span>`;
     }
     const trendTaxa = document.getElementById("trendTaxaInadimplencia");
     if (trendTaxa) {
@@ -1087,7 +1087,7 @@ function carregarDashboardPremium() {
     }
     const trendFaturamentoAnual = document.getElementById("trendFaturamentoAnual");
     if (trendFaturamentoAnual) {
-      trendFaturamentoAnual.innerHTML = `<span class="trend-icon"><span style="font-weight:700;font-size:13px;">R$</span></span><span class="trend-value">+${faturamentoAnual.toFixed(0)}</span><span class="trend-label">últimos 12 meses</span>`;
+      trendFaturamentoAnual.innerHTML = `<span class="trend-icon"><span style="font-weight:700;font-size:13px;">R$</span></span><span class="trend-value">+${faturamentoAnual.toFixed(0)}</span><span class="trend-label">Ãºltimos 12 meses</span>`;
     }
     criarGraficos(receitaPorMes, clientesPorPlano, receitaPorPlano, clientesCadastrosMeses, inadimplenciaPorMes);
   }).catch(erro => {
@@ -1191,7 +1191,7 @@ function salvarCliente() {
   const vencimento = document.getElementById("vencimento").value;
 
   if (!nome || !telefone || !email) {
-    showToast("Preencha: Nome, Telefone e E-mail!", "error", "Validação");
+    showToast("Preencha: Nome, Telefone e E-mail!", "error", "ValidaÃ§Ã£o");
     return;
   }
 
@@ -1218,7 +1218,7 @@ function salvarCliente() {
 }
 
 function carregarClientes() {
-  if (!auth.currentUser) { console.error("Usuário não está logado!"); return; }
+  if (!auth.currentUser) { console.error("UsuÃ¡rio nÃ£o estÃ¡ logado!"); return; }
   if (clientesListener) clientesListener();
   
   const tenantId = getTenantId();
@@ -1236,7 +1236,7 @@ function carregarClientes() {
       const cliente = doc.data();
       totalClientes++;
       if (cliente.status === "Ativo") { clientesAtivos++; faturamentoTotal += Number(cliente.valor) || 0; }
-      tabela.innerHTML += `<tr><td>${cliente.nome || ""}</td><td>${cliente.telefone || ""}</td><td>${cliente.status || ""}</td><td>${cliente.plano || ""}</td><td>${cliente.vencimento || ""}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarCliente('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('cliente', '${doc.id}', '${cliente.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
+tabela.innerHTML += `<tr><td>${cliente.nome || ""}</td><td>${cliente.telefone || ""}</td><td>${cliente.status || ""}</td><td>${cliente.plano || ""}</td><td>${cliente.vencimento || ""}</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-edit" onclick="editarCliente('${doc.id}')"><i class="fas fa-pen-to-square"></i> Editar</button><button class="action-menu-item menu-delete" onclick="abrirModalExclusao('cliente', '${doc.id}', '${cliente.nome}')"><i class="fas fa-trash-can"></i> Excluir</button></div></div></td></tr>`;
     });
     clientesLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
     const totalClientesEl = document.getElementById("totalClientes");
@@ -1251,8 +1251,8 @@ function carregarClientes() {
     console.error("Erro ao carregar clientes:", erro);
     // Fallback: try without orderBy if index is missing
     if (erro.code === 'failed-precondition' || erro.message?.includes('index')) {
-      console.warn("Tentando carregar sem ordenação (índice não encontrado)...");
-      showToast("Carregando clientes sem ordenação...", "info", "Aviso");
+      console.warn("Tentando carregar sem ordenaÃ§Ã£o (Ã­ndice nÃ£o encontrado)...");
+      showToast("Carregando clientes sem ordenaÃ§Ã£o...", "info", "Aviso");
       if (clientesListener) clientesListener();
       const fallbackQuery = db.collection("clientes").where("tenantId", "==", tenantId).limit(configuracoesSistema.paginacao.clientes);
       clientesListener = fallbackQuery.onSnapshot((snapshot) => {
@@ -1270,7 +1270,7 @@ function carregarClientes() {
         // Sort manually by name
         clientes.sort((a, b) => (a.cliente.nome || "").localeCompare(b.cliente.nome || ""));
         clientes.forEach(({ doc, cliente }) => {
-          tabela.innerHTML += `<tr><td>${cliente.nome || ""}</td><td>${cliente.telefone || ""}</td><td>${cliente.status || ""}</td><td>${cliente.plano || ""}</td><td>${cliente.vencimento || ""}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarCliente('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('cliente', '${doc.id}', '${cliente.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
+tabela.innerHTML += `<tr><td>${cliente.nome || ""}</td><td>${cliente.telefone || ""}</td><td>${cliente.status || ""}</td><td>${cliente.plano || ""}</td><td>${cliente.vencimento || ""}</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-edit" onclick="editarCliente('${doc.id}')"><i class="fas fa-pen-to-square"></i> Editar</button><button class="action-menu-item menu-delete" onclick="abrirModalExclusao('cliente', '${doc.id}', '${cliente.nome}')"><i class="fas fa-trash-can"></i> Excluir</button></div></div></td></tr>`;
         });
         const totalClientesEl = document.getElementById("totalClientes");
         if (totalClientesEl) totalClientesEl.innerText = totalClientes;
@@ -1291,9 +1291,11 @@ function carregarClientes() {
 }
 
 async function editarCliente(id) {
+  console.log("EDIT CLICK", id);
+  fecharMenuAcao();
   try {
     const docRef = await db.collection("clientes").doc(id).get();
-    if (!docRef.exists) { showToast("Cliente não encontrado!", "error", "Erro"); return; }
+    if (!docRef.exists) { showToast("Cliente nÃ£o encontrado!", "error", "Erro"); return; }
     const cliente = docRef.data();
     clienteEditando = id;
     sessionStorage.setItem('clienteEditandoId', id);
@@ -1318,7 +1320,7 @@ async function editarCliente(id) {
 
 async function atualizarCliente() {
   const id = clienteEditando || sessionStorage.getItem('clienteEditandoId');
-  if (!id) { showToast("Selecione um cliente para editar.", "warning", "Atenção"); return; }
+  if (!id) { showToast("Selecione um cliente para editar.", "warning", "AtenÃ§Ã£o"); return; }
   try {
     const updateData = secureUpdate({
       nome: sanitizarInput(document.getElementById("nome").value), cpf: sanitizarInput(document.getElementById("cpf").value),
@@ -1351,10 +1353,78 @@ function limparFormulario() {
 }
 
 // ===========================
+// THREE-DOT ACTION MENU
+// ===========================
+
+let menuAbertoId = null;
+
+function abrirMenuAcao(button, id) {
+  console.log("MENU CLICK", id);
+  fecharMenuAcao();
+  if (!button) {
+    console.log("MENU CLICK - button Ã© null/undefined");
+    return;
+  }
+  
+  // Buscar o wrapper (pai do botÃ£o)
+  let wrapper = button.parentElement;
+  console.log("MENU CLICK - wrapper (parent) encontrado:", !!wrapper);
+  if (!wrapper) {
+    console.log("MENU CLICK - wrapper (parent) nÃ£o encontrado");
+    return;
+  }
+  
+  // Verificar se o parent Ã© realmente o wrapper, senÃ£o usar closest
+  if (!wrapper.classList.contains('action-menu-wrapper')) {
+    wrapper = button.closest('.action-menu-wrapper');
+    console.log("MENU CLICK - wrapper (closest) encontrado:", !!wrapper);
+  }
+  
+  if (!wrapper) {
+    console.log("MENU CLICK - wrapper nÃ£o encontrado");
+    return;
+  }
+  
+  const dropdown = wrapper.querySelector('.action-menu-dropdown');
+  console.log("MENU CLICK - dropdown encontrado:", !!dropdown);
+  if (!dropdown) {
+    console.log("MENU CLICK - dropdown nÃ£o encontrado dentro do wrapper");
+    console.log("MENU CLICK - HTML do wrapper:", wrapper.innerHTML.substring(0, 200));
+    return;
+  }
+  
+  menuAbertoId = id;
+  dropdown.classList.add('open');
+  console.log("MENU CLICK - menu aberto para ID:", id);
+}
+
+function fecharMenuAcao() {
+  document.querySelectorAll('.action-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (menuAbertoId) {
+    console.log("MENU CLOSE - ID:", menuAbertoId);
+  }
+  menuAbertoId = null;
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.action-menu-wrapper')) {
+    fecharMenuAcao();
+  }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    fecharMenuAcao();
+  }
+});
+
+// ===========================
 // DELETE CONFIRMATION MODAL
 // ===========================
 
 function abrirModalExclusao(tipo, id, nome) {
+  console.log("DELETE CLICK", tipo, id, nome);
+  fecharMenuAcao();
   const modal = document.getElementById('confirmDeleteModal');
   const overlay = document.getElementById('confirmDeleteOverlay');
   const title = document.getElementById('confirmDeleteTitle');
@@ -1362,11 +1432,11 @@ function abrirModalExclusao(tipo, id, nome) {
   const confirmBtn = document.getElementById('confirmDeleteBtn');
   const cancelBtn = document.getElementById('confirmDeleteCancelBtn');
   if (!modal) { if (confirm(`Deseja realmente excluir ${nome || 'este registro'}?`)) executarExclusao(tipo, id); return; }
-  const labels = { 'cliente': 'Cliente', 'plano': 'Plano', 'mensalidade': 'Mensalidade', 'recebimento': 'Recebimento', 'despesa': 'Despesa', 'usuario': 'Usuário' };
+  const labels = { 'cliente': 'Cliente', 'plano': 'Plano', 'mensalidade': 'Mensalidade', 'recebimento': 'Recebimento', 'despesa': 'Despesa', 'usuario': 'UsuÃ¡rio' };
   const label = labels[tipo] || 'Registro';
   const displayName = nome || label;
   if (title) title.textContent = `Excluir ${label}?`;
-  if (message) message.textContent = `Tem certeza que deseja excluir "${displayName}"? Esta ação não poderá ser desfeita.`;
+  if (message) message.textContent = `Tem certeza que deseja excluir "${displayName}"? Esta aÃ§Ã£o nÃ£o poderÃ¡ ser desfeita.`;
   if (confirmBtn) { confirmBtn.innerHTML = `<i class="fas fa-trash-can"></i> Excluir ${label}`; confirmBtn.className = 'btn-confirm-delete'; confirmBtn.onclick = function() { fecharModalConfirmacao(); executarExclusao(tipo, id); }; }
   if (cancelBtn) cancelBtn.onclick = fecharModalConfirmacao;
   pendingDeleteAction = tipo; pendingDeleteId = id; pendingDeleteLabel = displayName;
@@ -1396,23 +1466,23 @@ function executarExclusao(tipo, id) {
 }
 
 function excluirClienteFirestore(id) {
-  db.collection("clientes").doc(id).delete().then(async () => { showToast("Cliente removido!", "success", "Excluído"); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("cliente_excluido", `Cliente excluído: ID ${id}`); }).catch((erro) => showToast("Erro ao excluir: " + erro.message, "error", "Erro"));
+  db.collection("clientes").doc(id).delete().then(async () => { showToast("Registro excluÃ­do com sucesso.", "success", "Sucesso"); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("cliente_excluido", `Cliente excluÃ­do: ID ${id}`); }).catch((erro) => showToast("Erro ao excluir: " + erro.message, "error", "Erro"));
 }
 
 function excluirPlanoFirestore(id) {
-  db.collection("planos").doc(id).delete().then(async () => { showToast("Plano removido!", "success", "Excluído"); await registrarAuditoria("plano_excluido", `Plano excluído: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  db.collection("planos").doc(id).delete().then(async () => { showToast("Registro excluÃ­do com sucesso.", "success", "Sucesso"); await registrarAuditoria("plano_excluido", `Plano excluÃ­do: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function excluirMensalidadeFirestore(id) {
-  db.collection("mensalidades").doc(id).delete().then(() => { showToast("Mensalidade removida!", "success", "Excluído"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  db.collection("mensalidades").doc(id).delete().then(() => { showToast("Registro excluÃ­do com sucesso.", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function excluirRecebimentoFirestore(id) {
-  db.collection("recebimentos").doc(id).delete().then(async () => { showToast("Recebimento removido!", "success", "Excluído"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("recebimento_excluido", `Recebimento excluído: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  db.collection("recebimentos").doc(id).delete().then(async () => { showToast("Registro excluÃ­do com sucesso.", "success", "Sucesso"); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("recebimento_excluido", `Recebimento excluÃ­do: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function excluirDespesaFirestore(id) {
-  db.collection("despesas").doc(id).delete().then(async () => { showToast("Despesa removida!", "success", "Excluído"); carregarDespesas(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("despesa_excluida", `Despesa excluída: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  db.collection("despesas").doc(id).delete().then(async () => { showToast("Registro excluÃ­do com sucesso.", "success", "Sucesso"); carregarDespesas(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("despesa_excluida", `Despesa excluÃ­da: ID ${id}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function excluirCliente(id) { abrirModalExclusao('cliente', id, ''); }
@@ -1429,7 +1499,7 @@ function salvarPlano() {
   const nome = sanitizarInput(document.getElementById("nomePlano").value);
   const velocidade = sanitizarInput(document.getElementById("velocidadePlano").value);
   const valor = Number(document.getElementById("valorPlano").value);
-  if (!nome || !velocidade || !valor) { showToast("Preencha todos os campos!", "error", "Validação"); return; }
+  if (!nome || !velocidade || !valor) { showToast("Preencha todos os campos!", "error", "ValidaÃ§Ã£o"); return; }
   db.collection("planos").add(secureData({ nome, velocidade, valor, dataCadastro: new Date() })).then(async () => { showToast("Plano cadastrado!", "success", "Sucesso"); limparFormularioPlano(); await registrarAuditoria("plano_criado", `Plano: ${nome}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
@@ -1442,7 +1512,7 @@ function carregarPlanos() {
     tabela.innerHTML = "";
     snapshot.forEach((doc) => {
       const p = doc.data();
-      tabela.innerHTML += `<tr><td>${p.nome || ""}</td><td>${p.velocidade || ""}</td><td>R$ ${Number(p.valor).toFixed(2)}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarPlano('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('plano', '${doc.id}', '${p.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
+tabela.innerHTML += `<tr><td>${p.nome || ""}</td><td>${p.velocidade || ""}</td><td>R$ ${Number(p.valor).toFixed(2)}</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-edit" onclick="editarPlano('${doc.id}')"><i class="fas fa-pen-to-square"></i> Editar</button><button class="action-menu-item menu-delete" onclick="abrirModalExclusao('plano', '${doc.id}', '${p.nome}')"><i class="fas fa-trash-can"></i> Excluir</button></div></div></td></tr>`;
     });
   }, (erro) => console.error("Erro ao carregar planos:", erro));
 }
@@ -1459,7 +1529,7 @@ function carregarPlanosSelect() {
 async function editarPlano(id) {
   try {
     const docRef = await db.collection("planos").doc(id).get();
-    if (!docRef.exists) { showToast("Plano não encontrado!", "error", "Erro"); return; }
+    if (!docRef.exists) { showToast("Plano nÃ£o encontrado!", "error", "Erro"); return; }
     const p = docRef.data();
     planoEditando = id; sessionStorage.setItem('planoEditandoId', id);
     document.getElementById("nomePlano").value = p.nome || "";
@@ -1470,7 +1540,7 @@ async function editarPlano(id) {
 
 async function atualizarPlano() {
   const id = planoEditando || sessionStorage.getItem('planoEditandoId');
-  if (!id) { showToast("Selecione um plano!", "warning", "Atenção"); return; }
+  if (!id) { showToast("Selecione um plano!", "warning", "AtenÃ§Ã£o"); return; }
   try {
     await db.collection("planos").doc(id).update(secureUpdate({ nome: document.getElementById("nomePlano").value, velocidade: document.getElementById("velocidadePlano").value, valor: Number(document.getElementById("valorPlano").value) }));
     showToast("Plano atualizado!", "success", "Sucesso");
@@ -1551,8 +1621,8 @@ function salvarRecebimento() {
   const clienteId = document.getElementById("receb_cliente").value; const valor = Number(document.getElementById("receb_valor").value);
   const vencimento = document.getElementById("receb_vencimento").value; const pagamento = document.getElementById("receb_pagamento").value;
   const status = document.getElementById("receb_status").value; const observacao = sanitizarTexto(document.getElementById("receb_observacao").value);
-  if (!clienteId || !valor || !vencimento || !pagamento) { showToast("Preencha todos os campos!", "error", "Validação"); return; }
-  db.collection("recebimentos").add(secureData({ clienteId, valor, vencimento, pagamento, status, observacao, dataCadastro: new Date() })).then(async () => { showToast("Cobrança cadastrada!", "success", "Sucesso"); fecharModalRecebimento(); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("recebimento_criado", `Cobrança: R$ ${valor}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
+  if (!clienteId || !valor || !vencimento || !pagamento) { showToast("Preencha todos os campos!", "error", "ValidaÃ§Ã£o"); return; }
+  db.collection("recebimentos").add(secureData({ clienteId, valor, vencimento, pagamento, status, observacao, dataCadastro: new Date() })).then(async () => { showToast("CobranÃ§a cadastrada!", "success", "Sucesso"); fecharModalRecebimento(); carregarRecebimentos(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("recebimento_criado", `CobranÃ§a: R$ ${valor}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
 function carregarRecebimentos() {
@@ -1567,10 +1637,10 @@ function carregarRecebimentos() {
     mensSnap.forEach((doc) => {
       const m = doc.data();
       const sc = m.status === "Pago" ? "status-pago" : m.status === "Atrasado" ? "status-atrasado" : "status-pendente";
-      html += `<tr><td>${m.clienteNome || ""}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td><span class="${sc}">${m.status}</span></td><td>${m.tipo || "Recorrente"}</td><td><div class="action-buttons">${m.status !== "Pago" ? `<button class="btn-action btn-action-success" onclick="marcarMensalidadePaga('${doc.id}')" title="Pago"><i class="fas fa-check"></i><span class="tooltip-text">Pago</span></button>` : ""}${m.status === "Em Aberto" ? `<button class="btn-action btn-action-warning" onclick="marcarMensalidadeAtrasada('${doc.id}')" title="Atrasado"><i class="fas fa-exclamation"></i><span class="tooltip-text">Atrasado</span></button>` : ""}<button class="btn-action btn-action-delete" onclick="abrirModalExclusao('mensalidade', '${doc.id}', '${m.clienteNome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`;
+      html += `<tr><td>${m.clienteNome || ""}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td><span class="${sc}">${m.status}</span></td><td>${m.tipo || "Recorrente"}</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown">${m.status !== "Pago" ? `<button class="action-menu-item menu-edit" onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i> Marcar como Pago</button>` : ""}${m.status === "Em Aberto" ? `<button class="action-menu-item menu-edit" onclick="marcarMensalidadeAtrasada('${doc.id}')"><i class="fas fa-exclamation"></i> Marcar como Atrasado</button>` : ""}<button class="action-menu-item menu-delete" onclick="abrirModalExclusao('mensalidade', '${doc.id}', '${m.clienteNome}')"><i class="fas fa-trash-can"></i> Excluir</button></div></div></td></tr>`;
     });
     db.collection("recebimentos").where("tenantId", "==", getTenantId()).orderBy("vencimento", "desc").limit(20).get().then((snap) => {
-      snap.forEach((doc) => { const r = doc.data(); db.collection("clientes").doc(r.clienteId).get().then((cDoc) => { if (cDoc.exists) { const c = cDoc.data(); const sc = r.status === "Pago" ? "status-pago" : "status-pendente"; html += `<tr><td>${c.nome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td><span class="${sc}">${r.status}</span></td><td>${r.pagamento}</td><td><div class="action-buttons"><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('recebimento', '${doc.id}', '${c.nome}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`; tabela.innerHTML = html; } }).catch(() => { tabela.innerHTML = html; }); });
+      snap.forEach((doc) => { const r = doc.data(); db.collection("clientes").doc(r.clienteId).get().then((cDoc) => { if (cDoc.exists) { const c = cDoc.data(); const sc = r.status === "Pago" ? "status-pago" : "status-pendente"; html += `<tr><td>${c.nome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td><span class="${sc}">${r.status}</span></td><td>${r.pagamento}</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-delete" onclick="abrirModalExclusao('recebimento', '${doc.id}', '${c.nome}')"><i class="fas fa-trash-can"></i> Excluir</button></div></div></td></tr>`; tabela.innerHTML = html; } }).catch(() => { tabela.innerHTML = html; }); });
       if (snap.size === 0) tabela.innerHTML = html;
     }).catch(() => { tabela.innerHTML = html; });
     recebimentosLastDoc = mensSnap.docs.length > 0 ? mensSnap.docs[mensSnap.docs.length - 1] : null;
@@ -1610,7 +1680,7 @@ function salvarDespesa() {
   const descricao = sanitizarInput(document.getElementById("desp_descricao").value); const categoria = document.getElementById("desp_categoria").value;
   const valor = Number(document.getElementById("desp_valor").value); const vencimento = document.getElementById("desp_vencimento").value;
   const status = document.getElementById("desp_status").value; const observacao = sanitizarTexto(document.getElementById("desp_observacao").value);
-  if (!descricao || !categoria || !valor || !vencimento) { showToast("Preencha todos os campos!", "error", "Validação"); return; }
+  if (!descricao || !categoria || !valor || !vencimento) { showToast("Preencha todos os campos!", "error", "ValidaÃ§Ã£o"); return; }
   db.collection("despesas").add(secureData({ descricao, categoria, valor, vencimento, status, observacao, dataCadastro: new Date() })).then(async () => { showToast("Despesa cadastrada!", "success", "Sucesso"); fecharModalDespesa(); limparFormularioDespesa(); carregarDespesas(); carregarFinanceiro(); carregarDashboardPremium(); await registrarAuditoria("despesa_criada", `Despesa: ${descricao} - R$ ${valor}`); }).catch((erro) => showToast("Erro: " + erro.message, "error", "Erro"));
 }
 
@@ -1622,7 +1692,7 @@ function carregarDespesas() {
     const tabela = document.getElementById("listaDespesas");
     if (!tabela) return;
     tabela.innerHTML = "";
-    snapshot.forEach((doc) => { const d = doc.data(); const sc = d.status === "Pago" ? "status-pago" : "status-pendente"; tabela.innerHTML += `<tr><td>${d.descricao}</td><td>${d.categoria}</td><td>R$ ${d.valor.toFixed(2)}</td><td>${d.vencimento}</td><td><span class="${sc}">${d.status}</span></td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarDespesa('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-delete" onclick="abrirModalExclusao('despesa', '${doc.id}', '${d.descricao}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`; });
+    snapshot.forEach((doc) => { const d = doc.data(); const sc = d.status === "Pago" ? "status-pago" : "status-pendente"; tabela.innerHTML += `<tr><td>${d.descricao}</td><td>${d.categoria}</td><td>R$ ${d.valor.toFixed(2)}</td><td>${d.vencimento}</td><td><span class="${sc}">${d.status}</span></td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-edit" onclick="editarDespesa('${doc.id}')"><i class="fas fa-pen-to-square"></i> Editar</button><button class="action-menu-item menu-delete" onclick="abrirModalExclusao('despesa', '${doc.id}', '${d.descricao}')"><i class="fas fa-trash-can"></i> Excluir</button></div></div></td></tr>`; });
     despesasLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
   }, (erro) => console.error("Erro ao carregar despesas:", erro));
 }
@@ -1638,7 +1708,7 @@ function filtrarDespesas() {
   });
 }
 
-function editarDespesa(id) { showToast("Edição de despesa em breve.", "info", "Em desenvolvimento"); }
+function editarDespesa(id) { showToast("EdiÃ§Ã£o de despesa em breve.", "info", "Em desenvolvimento"); }
 
 function limparFormularioDespesa() {
   document.getElementById("desp_descricao").value = "";
@@ -1664,7 +1734,7 @@ function atualizarFluxoCaixa() {
     let entradas = 0, saidas = 0, fluxoHTML = "";
     receb.forEach(doc => { const r = doc.data(); if (["Pago","Recebido","Quitado"].includes(r.status)) { if ((!dataInicio || r.vencimento >= dataInicio) && (!dataFim || r.vencimento <= dataFim)) { entradas += r.valor; fluxoHTML += `<tr><td>${r.vencimento}</td><td>Entrada</td><td>Recebimento</td><td class="valor-receita">+R$ ${r.valor.toFixed(2)}</td></tr>`; } } });
     mens.forEach(doc => { const m = doc.data(); if (["Pago","Recebido","Quitado"].includes(m.status)) { const data = m.dataPagamento || m.vencimento; if ((!dataInicio || data >= dataInicio) && (!dataFim || data <= dataFim)) { entradas += m.valor; fluxoHTML += `<tr><td>${data}</td><td>Entrada</td><td>Mensalidade - ${m.clienteNome}</td><td class="valor-receita">+R$ ${m.valor.toFixed(2)}</td></tr>`; } } });
-    desp.forEach(doc => { const d = doc.data(); if (d.status === "Pago") { if ((!dataInicio || d.vencimento >= dataInicio) && (!dataFim || d.vencimento <= dataFim)) { saidas += d.valor; fluxoHTML += `<tr><td>${d.vencimento}</td><td>Saída</td><td>${d.descricao}</td><td class="valor-despesa">-R$ ${d.valor.toFixed(2)}</td></tr>`; } } });
+    desp.forEach(doc => { const d = doc.data(); if (d.status === "Pago") { if ((!dataInicio || d.vencimento >= dataInicio) && (!dataFim || d.vencimento <= dataFim)) { saidas += d.valor; fluxoHTML += `<tr><td>${d.vencimento}</td><td>SaÃ­da</td><td>${d.descricao}</td><td class="valor-despesa">-R$ ${d.valor.toFixed(2)}</td></tr>`; } } });
     const saldo = entradas - saidas;
     document.getElementById("totalEntradas").innerText = "R$ " + entradas.toFixed(2);
     document.getElementById("totalSaidas").innerText = "R$ " + saidas.toFixed(2);
@@ -1714,7 +1784,7 @@ function carregarFinanceiro() {
     setText("totalAberto", "R$ " + totalAberto.toFixed(2)); setText("totalDespesas", "R$ " + totalDespesas.toFixed(2));
     setText("lucroLiquido", "R$ " + lucroLiquido.toFixed(2)); setText("totalInadimplentes", String(clientesInadimplentes));
     setText("valorInadimplentes", "R$ " + valorInadimplente.toFixed(2) + " em atraso"); setText("recebidoQtd", recebidoQtd + " pagas");
-    setText("abertoQtd", abertoQtd + " pendentes"); setText("despesasQtd", despesasQtd + " este mês");
+    setText("abertoQtd", abertoQtd + " pendentes"); setText("despesasQtd", despesasQtd + " este mÃªs");
     setText("receitaRecebidaMes", "R$ " + receitaRecebidaMes.toFixed(2)); setText("receitaAnualProjetada", "R$ " + receitaAnualProjetada.toFixed(2));
     setText("receitaAtraso", "R$ " + receitaAtraso.toFixed(2));
     carregarInadimplentes();
@@ -1722,7 +1792,7 @@ function carregarFinanceiro() {
 }
 
 // ===========================
-// INADIMPLÊNCIA
+// INADIMPLÃŠNCIA
 // ===========================
 
 function carregarInadimplentes() {
@@ -1740,12 +1810,12 @@ function carregarInadimplentes() {
     atualizarTabelaReceitaAtraso(receitasAtraso);
   }
   inadimplentesMensalidadesListener = db.collection("mensalidades").where("tenantId", "==", getTenantId()).where("status", "==", "Atrasado").onSnapshot((snap) => {
-    snap.forEach(doc => { const m = doc.data(); total++; valorTotal += m.valor; clientesUnicos.add(m.clienteId); const dias = Math.floor((new Date() - new Date(m.vencimento)) / (1000*60*60*24)); tabela.innerHTML += `<tr><td>${m.clienteNome}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td>${dias} dias</td><td>Mensalidade</td><td><div class="action-buttons"><button class="btn-action btn-action-whatsapp" onclick="enviarWhatsAppInadimplente('${m.clienteNome}','${m.valor}','${m.vencimento}')" title="WhatsApp"><i class="fab fa-whatsapp"></i><span class="tooltip-text">WhatsApp</span></button><button class="btn-action btn-action-success" onclick="marcarMensalidadePaga('${doc.id}')" title="Pago"><i class="fas fa-check"></i><span class="tooltip-text">Pagar</span></button></div></td></tr>`; receitasAtraso.push({ clienteNome: m.clienteNome, valor: m.valor, vencimento: m.vencimento, diasAtraso: dias, tipo: 'Mensalidade', id: doc.id, telefone: null }); }); dados++; if (dados >= esperado) atualizar();
+    snap.forEach(doc => { const m = doc.data(); total++; valorTotal += m.valor; clientesUnicos.add(m.clienteId); const dias = Math.floor((new Date() - new Date(m.vencimento)) / (1000*60*60*24)); tabela.innerHTML += `<tr><td>${m.clienteNome}</td><td>R$ ${m.valor.toFixed(2)}</td><td>${m.vencimento}</td><td>${dias} dias</td><td>Mensalidade</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-edit" onclick="enviarWhatsAppInadimplente('${m.clienteNome}','${m.valor}','${m.vencimento}')"><i class="fab fa-whatsapp"></i> WhatsApp</button><button class="action-menu-item menu-edit" onclick="marcarMensalidadePaga('${doc.id}')"><i class="fas fa-check"></i> Marcar como Pago</button></div></div></td></tr>`; receitasAtraso.push({ clienteNome: m.clienteNome, valor: m.valor, vencimento: m.vencimento, diasAtraso: dias, tipo: 'Mensalidade', id: doc.id, telefone: null }); }); dados++; if (dados >= esperado) atualizar();
   }, () => { dados++; if (dados >= esperado) atualizar(); });
   inadimplentesRecebimentosListener = db.collection("recebimentos").where("tenantId", "==", getTenantId()).where("status", "==", "Atrasado").onSnapshot((snap) => {
     let proc = 0; const totalProc = snap.size;
     if (totalProc === 0) { dados++; if (dados >= esperado) atualizar(); return; }
-    snap.forEach(doc => { const r = doc.data(); total++; valorTotal += r.valor; clientesUnicos.add(r.clienteId); db.collection("clientes").doc(r.clienteId).get().then(cDoc => { if (cDoc.exists) { const c = cDoc.data(); const dias = Math.floor((new Date() - new Date(r.vencimento)) / (1000*60*60*24)); tabela.innerHTML += `<tr><td>${c.nome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td>${dias} dias</td><td>${c.telefone}</td><td><div class="action-buttons"><button class="btn-action btn-action-whatsapp" onclick="enviarWhatsAppInadimplente('${c.nome}','${r.valor}','${r.vencimento}','${c.telefone}')" title="WhatsApp"><i class="fab fa-whatsapp"></i><span class="tooltip-text">WhatsApp</span></button><button class="btn-action btn-action-success" onclick="marcarComoPago('${doc.id}')" title="Pago"><i class="fas fa-check"></i><span class="tooltip-text">Pagar</span></button></div></td></tr>`; receitasAtraso.push({ clienteNome: c.nome, valor: r.valor, vencimento: r.vencimento, diasAtraso: dias, tipo: 'Manual', id: doc.id, telefone: c.telefone }); } proc++; if (proc >= totalProc) { dados++; if (dados >= esperado) atualizar(); } }).catch(() => { proc++; if (proc >= totalProc) { dados++; if (dados >= esperado) atualizar(); } }); });
+    snap.forEach(doc => { const r = doc.data(); total++; valorTotal += r.valor; clientesUnicos.add(r.clienteId); db.collection("clientes").doc(r.clienteId).get().then(cDoc => { if (cDoc.exists) { const c = cDoc.data(); const dias = Math.floor((new Date() - new Date(r.vencimento)) / (1000*60*60*24)); tabela.innerHTML += `<tr><td>${c.nome}</td><td>R$ ${r.valor.toFixed(2)}</td><td>${r.vencimento}</td><td>${dias} dias</td><td>${c.telefone}</td><td><div class="action-menu-wrapper"><button class="action-menu-trigger" onclick="abrirMenuAcao(this, '${doc.id}')" title="AÃ§Ãµes"><i class="fas fa-ellipsis-vertical"></i></button><div class="action-menu-dropdown"><button class="action-menu-item menu-edit" onclick="enviarWhatsAppInadimplente('${c.nome}','${r.valor}','${r.vencimento}','${c.telefone}')"><i class="fab fa-whatsapp"></i> WhatsApp</button><button class="action-menu-item menu-edit" onclick="marcarComoPago('${doc.id}')"><i class="fas fa-check"></i> Marcar como Pago</button></div></div></td></tr>`; receitasAtraso.push({ clienteNome: c.nome, valor: r.valor, vencimento: r.vencimento, diasAtraso: dias, tipo: 'Manual', id: doc.id, telefone: c.telefone }); } proc++; if (proc >= totalProc) { dados++; if (dados >= esperado) atualizar(); } }).catch(() => { proc++; if (proc >= totalProc) { dados++; if (dados >= esperado) atualizar(); } }); });
   }, () => { dados++; if (dados >= esperado) atualizar(); });
 }
 
@@ -1761,18 +1831,18 @@ function atualizarTabelaReceitaAtraso(receitas) {
 }
 
 function enviarWhatsAppInadimplente(nome, valor, vencimento, telefone) {
-  if (!telefone) { db.collection("clientes").where("nome","==",nome).where("tenantId","==",getTenantId()).limit(1).get().then(snap => { if (!snap.empty) abrirWhatsApp(snap.docs[0].data().telefone, nome, valor, vencimento); else showToast("Cliente não encontrado.", "error"); }).catch(e => showToast("Erro: " + e.message, "error")); }
+  if (!telefone) { db.collection("clientes").where("nome","==",nome).where("tenantId","==",getTenantId()).limit(1).get().then(snap => { if (!snap.empty) abrirWhatsApp(snap.docs[0].data().telefone, nome, valor, vencimento); else showToast("Cliente nÃ£o encontrado.", "error"); }).catch(e => showToast("Erro: " + e.message, "error")); }
   else abrirWhatsApp(telefone, nome, valor, vencimento);
 }
 
 function abrirWhatsApp(telefone, nome, valor, vencimento) {
   const tel = telefone.replace(/\D/g,'');
-  const msg = encodeURIComponent(`Olá, ${nome}!\n\nIdentificamos uma mensalidade em aberto no valor de R$ ${valor}, vencida em ${vencimento}.\n\nCaso já tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\nControlISP`);
+  const msg = encodeURIComponent(`OlÃ¡, ${nome}!\n\nIdentificamos uma mensalidade em aberto no valor de R$ ${valor}, vencida em ${vencimento}.\n\nCaso jÃ¡ tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\nControlISP`);
   window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
 }
 
 function enviarCobranca(nome, valor, vencimento, dias) {
-  const msg = `Olá ${nome},\n\nVocê tem uma cobrança de R$ ${Number(valor).toFixed(2)} em atraso há ${dias} dias (vencimento: ${vencimento}).\n\nPor favor, entre em contato para regularizar.\n\nObrigado!`;
+  const msg = `OlÃ¡ ${nome},\n\nVocÃª tem uma cobranÃ§a de R$ ${Number(valor).toFixed(2)} em atraso hÃ¡ ${dias} dias (vencimento: ${vencimento}).\n\nPor favor, entre em contato para regularizar.\n\nObrigado!`;
   navigator.clipboard.writeText(msg).then(() => showToast("Mensagem copiada!", "success")).catch(() => showToast("Erro ao copiar.", "error"));
 }
 
@@ -1866,7 +1936,7 @@ function salvarNomeEmpresa() {
 function salvarConfiguracaoAPI() {
   const apiProvider = document.getElementById("wa_api_provider").value; const apiKey = document.getElementById("wa_api_key").value; const apiUrl = document.getElementById("wa_api_url").value;
   configuracoesWhatsApp.apiProvider = apiProvider; configuracoesWhatsApp.apiKey = apiKey; configuracoesWhatsApp.apiUrl = apiUrl;
-  db.collection("configuracoes").doc("whatsapp").set({ apiProvider, apiKey, apiUrl, updatedAt: new Date() }, { merge: true }).then(() => showToast("Configuração salva!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
+  db.collection("configuracoes").doc("whatsapp").set({ apiProvider, apiKey, apiUrl, updatedAt: new Date() }, { merge: true }).then(() => showToast("ConfiguraÃ§Ã£o salva!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
 function substituirVariaveis(msg, cliente, valor, vencimento) {
@@ -1879,7 +1949,7 @@ function enviarMensagemIndividual() {
   const clienteId = document.getElementById("wa_cliente_individual").value; const templateTipo = document.getElementById("wa_template_individual").value; const msgCustom = document.getElementById("wa_mensagem_individual").value;
   if (!clienteId) { showToast("Selecione um cliente!", "warning"); return; }
   const cliente = clientesWhatsApp.find(c => c.id === clienteId);
-  if (!cliente) { showToast("Cliente não encontrado!", "error"); return; }
+  if (!cliente) { showToast("Cliente nÃ£o encontrado!", "error"); return; }
   if (!cliente.telefone) { showToast("Cliente sem telefone!", "warning"); return; }
   let mensagem = "", tipoMsg = templateTipo;
   if (templateTipo === "personalizado") mensagem = msgCustom;
@@ -1918,7 +1988,7 @@ function identificarCobrancasPendentes() {
     document.getElementById("wa_vencendo_3dias").innerText = String(venc3);
     document.getElementById("wa_vencendo_7dias").innerText = String(venc7);
     document.getElementById("wa_em_atraso").innerText = String(atraso);
-  }, e => console.error("Erro cobranças:", e));
+  }, e => console.error("Erro cobranÃ§as:", e));
 }
 
 function enviarCobrancaIndividual(mensalidadeId, categoria) {
@@ -1926,19 +1996,19 @@ function enviarCobrancaIndividual(mensalidadeId, categoria) {
 }
 
 function enviarAvisoVencimento3Dias() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='3dias']"); if (!linhas.length) { showToast("Nenhum cliente vencendo em 3 dias.", "info"); return; } if (!confirm(`Enviar aviso para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
-function enviarCobrancaHoje() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='hoje']"); if (!linhas.length) { showToast("Nenhum cliente vencendo hoje.", "info"); return; } if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
-function enviarCobrancaAtraso() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']"); if (!linhas.length) { showToast("Nenhum cliente em atraso.", "info"); return; } if (!confirm(`Enviar cobrança para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
+function enviarCobrancaHoje() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='hoje']"); if (!linhas.length) { showToast("Nenhum cliente vencendo hoje.", "info"); return; } if (!confirm(`Enviar cobranÃ§a para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
+function enviarCobrancaAtraso() { const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']"); if (!linhas.length) { showToast("Nenhum cliente em atraso.", "info"); return; } if (!confirm(`Enviar cobranÃ§a para ${linhas.length} clientes?`)) return; linhas.forEach(l => { const b = l.querySelectorAll("button"); if (b.length) b[0].click(); }); }
 
 function enviarCobrancaAmigavel() {
   const linhas = document.querySelectorAll("#listaCobrancasWhatsApp tr[data-categoria='atrasado']");
   if (!linhas.length) { showToast("Nenhum cliente em atraso.", "info"); return; }
-  if (!confirm(`Enviar cobrança amigável para ${linhas.length} clientes?`)) return;
+  if (!confirm(`Enviar cobranÃ§a amigÃ¡vel para ${linhas.length} clientes?`)) return;
   linhas.forEach(l => { const nome = l.cells[0].textContent; const c = clientesWhatsApp.find(x => x.nome === nome); if (c && c.telefone) { const template = configuracoesWhatsApp.templates.cobranca_amigavel || ""; const msg = substituirVariaveis(template, c, c.valor, formatarDataVencimento(c.vencimento)); salvarHistoricoWhatsApp(c, msg, "cobranca_amigavel", "Enviado"); window.open(`https://wa.me/${formatarTelefoneWhatsApp(c.telefone)}?text=${encodeURIComponent(msg)}`, '_blank'); } });
 }
 
 function salvarHistoricoWhatsApp(cliente, mensagem, tipo, status) {
   const agora = new Date();
-  db.collection("whatsapp_historico").add(secureData({ clienteId: cliente.id, clienteNome: cliente.nome, clienteTelefone: cliente.telefone, mensagem, tipo, status, data: agora.toLocaleDateString('pt-BR'), hora: agora.toLocaleTimeString('pt-BR'), timestamp: agora })).catch(e => console.error("Erro histórico:", e));
+  db.collection("whatsapp_historico").add(secureData({ clienteId: cliente.id, clienteNome: cliente.nome, clienteTelefone: cliente.telefone, mensagem, tipo, status, data: agora.toLocaleDateString('pt-BR'), hora: agora.toLocaleTimeString('pt-BR'), timestamp: agora })).catch(e => console.error("Erro histÃ³rico:", e));
 }
 
 function carregarHistoricoWhatsApp() {
@@ -1948,7 +2018,7 @@ function carregarHistoricoWhatsApp() {
     if (!tabela) return;
     tabela.innerHTML = "";
     snap.forEach(doc => { const h = doc.data(); tabela.innerHTML += `<tr><td>${h.clienteNome}</td><td>${h.data}</td><td>${h.hora}</td><td>${h.tipo}</td><td><span class="status-${(h.status||"").toLowerCase()}">${h.status}</span></td><td><button onclick="verMensagemHistorico('${doc.id}')"><i class="fas fa-eye"></i> Ver</button></td></tr>`; });
-  }, e => console.error("Erro histórico:", e));
+  }, e => console.error("Erro histÃ³rico:", e));
 }
 
 function filtrarHistoricoWhatsApp() {
@@ -1965,8 +2035,8 @@ function filtrarHistoricoWhatsApp() {
 function verMensagemHistorico(id) { db.collection("whatsapp_historico").doc(id).get().then(doc => { if (doc.exists) showToast(doc.data().mensagem, "info", doc.data().clienteNome); }).catch(e => showToast("Erro: " + e.message, "error")); }
 
 function limparHistoricoWhatsApp() {
-  if (!confirm("Limpar todo o histórico?")) return;
-  db.collection("whatsapp_historico").where("tenantId","==",getTenantId()).get().then(snap => { const b = db.batch(); snap.forEach(d => b.delete(d.ref)); return b.commit(); }).then(() => showToast("Histórico limpo!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
+  if (!confirm("Limpar todo o histÃ³rico?")) return;
+  db.collection("whatsapp_historico").where("tenantId","==",getTenantId()).get().then(snap => { const b = db.batch(); snap.forEach(d => b.delete(d.ref)); return b.commit(); }).then(() => showToast("HistÃ³rico limpo!", "success")).catch(e => showToast("Erro: " + e.message, "error"));
 }
 
 function carregarConfiguracoesWhatsApp() {
@@ -2022,7 +2092,7 @@ function carregarUsuariosAdmin() {
     if (!tabela) return;
     tabela.innerHTML = "";
     snap.forEach(doc => { const u = doc.data(); tabela.innerHTML += `<tr><td>${u.nome||""}</td><td>${u.empresa||""}</td><td>${u.email||""}</td><td>${u.telefone||""}</td><td>${u.plano||""}</td><td><span class="status-${(u.status||"").toLowerCase()}">${u.status}</span></td><td>${u.role||"cliente"}</td><td>${u.criadoEm ? new Date(u.criadoEm.toDate ? u.criadoEm.toDate() : u.criadoEm).toLocaleDateString('pt-BR') : ""}</td><td><div class="action-buttons"><button class="btn-action btn-action-edit" onclick="editarUsuario('${doc.id}')" title="Editar"><i class="fas fa-pen-to-square"></i><span class="tooltip-text">Editar</span></button><button class="btn-action btn-action-warning" onclick="redefinirSenhaUsuario('${doc.id}')" title="Senha"><i class="fas fa-key"></i><span class="tooltip-text">Redefinir</span></button>${u.status === "Ativo" ? `<button class="btn-action btn-action-warning" onclick="bloquearUsuario('${doc.id}')" title="Bloquear"><i class="fas fa-lock"></i><span class="tooltip-text">Bloquear</span></button>` : `<button class="btn-action btn-action-success" onclick="ativarUsuario('${doc.id}')" title="Ativar"><i class="fas fa-unlock"></i><span class="tooltip-text">Ativar</span></button>`}<button class="btn-action btn-action-delete" onclick="abrirModalExclusao('usuario', '${doc.id}', '${u.nome||''}')" title="Excluir"><i class="fas fa-trash-can"></i><span class="tooltip-text">Excluir</span></button></div></td></tr>`; });
-  }, e => console.error("Erro admin usuários:", e));
+  }, e => console.error("Erro admin usuÃ¡rios:", e));
 }
 
 function filtrarUsuarios() {
@@ -2036,7 +2106,7 @@ function filtrarUsuarios() {
   });
 }
 
-function abrirModalUsuario() { const modal = document.getElementById("modalUsuario"); if (modal) modal.style.display = "flex"; const titulo = document.getElementById("modalUsuarioTitulo"); if (titulo) titulo.innerText = "Novo Usuário"; limparFormularioUsuario(); usuarioEditando = null; }
+function abrirModalUsuario() { const modal = document.getElementById("modalUsuario"); if (modal) modal.style.display = "flex"; const titulo = document.getElementById("modalUsuarioTitulo"); if (titulo) titulo.innerText = "Novo UsuÃ¡rio"; limparFormularioUsuario(); usuarioEditando = null; }
 function fecharModalUsuario() { document.getElementById("modalUsuario").style.display = "none"; limparFormularioUsuario(); usuarioEditando = null; }
 function limparFormularioUsuario() {
   document.getElementById("admin_usuario_id").value = ""; document.getElementById("admin_usuario_nome").value = "";
@@ -2046,50 +2116,50 @@ function limparFormularioUsuario() {
 }
 
 async function salvarUsuario() {
-  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
+  if (!isMasterAdmin()) { showToast("AÃ§Ã£o reservada.", "error"); return; }
   const id = document.getElementById("admin_usuario_id").value; const nome = document.getElementById("admin_usuario_nome").value;
   const empresa = document.getElementById("admin_usuario_empresa").value; const email = document.getElementById("admin_usuario_email").value;
   const telefone = document.getElementById("admin_usuario_telefone").value; const plano = document.getElementById("admin_usuario_plano").value;
   const status = document.getElementById("admin_usuario_status").value;
   if (!nome || !email) { showToast("Preencha nome e e-mail!", "warning"); return; }
   try {
-    if (id) { await db.collection("usuarios").doc(id).update(secureUpdate({ nome, empresa, telefone, plano, status })); showToast("Usuário atualizado!", "success"); }
-    else { const createProvider = functions.httpsCallable('createProvider'); const resp = await createProvider({ email, nome, empresa, telefone, plano, status }); showToast(`Usuário criado! Senha: ${resp.data.senha}`, "success"); }
+    if (id) { await db.collection("usuarios").doc(id).update(secureUpdate({ nome, empresa, telefone, plano, status })); showToast("UsuÃ¡rio atualizado!", "success"); }
+    else { const createProvider = functions.httpsCallable('createProvider'); const resp = await createProvider({ email, nome, empresa, telefone, plano, status }); showToast(`UsuÃ¡rio criado! Senha: ${resp.data.senha}`, "success"); }
     fecharModalUsuario(); carregarUsuariosAdmin(); carregarDashboardAdmin();
   } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function editarUsuario(id) {
-  try { const doc = await db.collection("usuarios").doc(id).get(); if (!doc.exists) { showToast("Usuário não encontrado!", "error"); return; } const u = doc.data(); usuarioEditando = id; document.getElementById("modalUsuario").style.display = "flex"; document.getElementById("modalUsuarioTitulo").innerText = "Editar Usuário"; document.getElementById("admin_usuario_id").value = id; document.getElementById("admin_usuario_nome").value = u.nome || ""; document.getElementById("admin_usuario_empresa").value = u.empresa || ""; document.getElementById("admin_usuario_email").value = u.email || ""; document.getElementById("admin_usuario_telefone").value = u.telefone || ""; if (document.getElementById("admin_usuario_plano")) document.getElementById("admin_usuario_plano").value = u.plano || ""; if (document.getElementById("admin_usuario_role")) document.getElementById("admin_usuario_role").value = u.role || "cliente"; if (document.getElementById("admin_usuario_status")) document.getElementById("admin_usuario_status").value = u.status || ""; } catch (e) { showToast("Erro: " + e.message, "error"); }
+  try { const doc = await db.collection("usuarios").doc(id).get(); if (!doc.exists) { showToast("UsuÃ¡rio nÃ£o encontrado!", "error"); return; } const u = doc.data(); usuarioEditando = id; document.getElementById("modalUsuario").style.display = "flex"; document.getElementById("modalUsuarioTitulo").innerText = "Editar UsuÃ¡rio"; document.getElementById("admin_usuario_id").value = id; document.getElementById("admin_usuario_nome").value = u.nome || ""; document.getElementById("admin_usuario_empresa").value = u.empresa || ""; document.getElementById("admin_usuario_email").value = u.email || ""; document.getElementById("admin_usuario_telefone").value = u.telefone || ""; if (document.getElementById("admin_usuario_plano")) document.getElementById("admin_usuario_plano").value = u.plano || ""; if (document.getElementById("admin_usuario_role")) document.getElementById("admin_usuario_role").value = u.role || "cliente"; if (document.getElementById("admin_usuario_status")) document.getElementById("admin_usuario_status").value = u.status || ""; } catch (e) { showToast("Erro: " + e.message, "error"); }
 }
 
 async function bloquearUsuario(id) {
-  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
-  if (!confirm("Bloquear este usuário?")) return;
-  try { await functions.httpsCallable('updateUserStatus')({ uid: id, status: "Bloqueado" }); showToast("Usuário bloqueado!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
+  if (!isMasterAdmin()) { showToast("AÃ§Ã£o reservada.", "error"); return; }
+  if (!confirm("Bloquear este usuÃ¡rio?")) return;
+  try { await functions.httpsCallable('updateUserStatus')({ uid: id, status: "Bloqueado" }); showToast("UsuÃ¡rio bloqueado!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function ativarUsuario(id) {
-  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
-  if (!confirm("Ativar este usuário?")) return;
-  try { await functions.httpsCallable('updateUserStatus')({ uid: id, status: "Ativo" }); showToast("Usuário ativado!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
+  if (!isMasterAdmin()) { showToast("AÃ§Ã£o reservada.", "error"); return; }
+  if (!confirm("Ativar este usuÃ¡rio?")) return;
+  try { await functions.httpsCallable('updateUserStatus')({ uid: id, status: "Ativo" }); showToast("UsuÃ¡rio ativado!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function excluirUsuarioAdmin(id) {
-  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
-  try { await functions.httpsCallable('deleteUserAccount')({ uid: id }); showToast("Usuário excluído!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
+  if (!isMasterAdmin()) { showToast("AÃ§Ã£o reservada.", "error"); return; }
+  try { await functions.httpsCallable('deleteUserAccount')({ uid: id }); showToast("UsuÃ¡rio excluÃ­do!", "success"); carregarUsuariosAdmin(); carregarDashboardAdmin(); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
 async function redefinirSenhaUsuario(id) {
-  if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; }
-  try { const doc = await db.collection("usuarios").doc(id).get(); if (!doc.exists) { showToast("Usuário não encontrado!", "error"); return; } const u = doc.data(); if (!confirm(`Redefinir senha de ${u.email}?`)) return; const resp = await functions.httpsCallable('sendPasswordReset')({ email: u.email }); showToast(`Link: ${resp.data.link}`, "info", "Redefinir Senha"); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
+  if (!isMasterAdmin()) { showToast("AÃ§Ã£o reservada.", "error"); return; }
+  try { const doc = await db.collection("usuarios").doc(id).get(); if (!doc.exists) { showToast("UsuÃ¡rio nÃ£o encontrado!", "error"); return; } const u = doc.data(); if (!confirm(`Redefinir senha de ${u.email}?`)) return; const resp = await functions.httpsCallable('sendPasswordReset')({ email: u.email }); showToast(`Link: ${resp.data.link}`, "info", "Redefinir Senha"); } catch (e) { showToast("Erro: " + (e.message||e), "error"); }
 }
 
-function excluirUsuario(id) { if (!isMasterAdmin()) { showToast("Ação reservada.", "error"); return; } abrirModalExclusao('usuario', id, ''); }
+function excluirUsuario(id) { if (!isMasterAdmin()) { showToast("AÃ§Ã£o reservada.", "error"); return; } abrirModalExclusao('usuario', id, ''); }
 
 async function diagnosticarDados() {
-  if (!auth.currentUser) { showToast("Faça login.", "warning"); return; }
-  if (!usuarioAtual.tenantId) { showToast("Tenant não encontrado.", "error"); return; }
+  if (!auth.currentUser) { showToast("FaÃ§a login.", "warning"); return; }
+  if (!usuarioAtual.tenantId) { showToast("Tenant nÃ£o encontrado.", "error"); return; }
   const results = await Promise.all([
     db.collection("clientes").where("tenantId","==",getTenantId()).get(),
     db.collection("planos").where("tenantId","==",getTenantId()).get(),
@@ -2098,10 +2168,10 @@ async function diagnosticarDados() {
     db.collection("mensalidades").where("tenantId","==",getTenantId()).get(),
     db.collection("whatsapp_historico").where("tenantId","==",getTenantId()).get()
   ]);
-  showToast(`Clientes: ${results[0].size} | Planos: ${results[1].size} | Recebimentos: ${results[2].size} | Despesas: ${results[3].size} | Mensalidades: ${results[4].size} | WhatsApp: ${results[5].size}`, "info", "Diagnóstico");
+  showToast(`Clientes: ${results[0].size} | Planos: ${results[1].size} | Recebimentos: ${results[2].size} | Despesas: ${results[3].size} | Mensalidades: ${results[4].size} | WhatsApp: ${results[5].size}`, "info", "DiagnÃ³stico");
 }
 
-function migrarDadosExistentes() { showToast("Migração deve ser feita via backend seguro.", "info"); }
+function migrarDadosExistentes() { showToast("MigraÃ§Ã£o deve ser feita via backend seguro.", "info"); }
 
 // ===========================
 // ENGENHARIA FTTH
@@ -2110,7 +2180,7 @@ function migrarDadosExistentes() { showToast("Migração deve ser feita via back
 function addSplitter() {
   const div = document.createElement("div");
   div.className = "splitter-container";
-  div.innerHTML = `<select class="splitter"><option value="0">Sem splitter</option><option value="3.5">1:2</option><option value="7">1:4</option><option value="10.5">1:8</option><option value="13.5">1:16</option><option value="17">1:32</option></select><button class="remove-btn" onclick="removeSplitter(this)">✕</button>`;
+  div.innerHTML = `<select class="splitter"><option value="0">Sem splitter</option><option value="3.5">1:2</option><option value="7">1:4</option><option value="10.5">1:8</option><option value="13.5">1:16</option><option value="17">1:32</option></select><button class="remove-btn" onclick="removeSplitter(this)">âœ•</button>`;
   const container = document.getElementById("calc_splitters");
   if (container) container.appendChild(div);
 }
@@ -2121,13 +2191,13 @@ function calcularFTTH() {
   const olt = parseFloat(document.getElementById("calc_olt").value); const km = parseFloat(document.getElementById("calc_km").value);
   const lossKm = parseFloat(document.getElementById("calc_lossKm").value); const conn = parseInt(document.getElementById("calc_conn").value);
   const lossConn = parseFloat(document.getElementById("calc_lossConn").value); const threshold = parseFloat(document.getElementById("calc_threshold").value);
-  if (isNaN(olt)||isNaN(km)||isNaN(lossKm)||isNaN(conn)||isNaN(lossConn)) { document.getElementById("calc_resultado").innerHTML = '<div class="calcResultado calcResultadoErro"><p>⚠️ Preencha todos os campos</p></div>'; return; }
-  if (km < 0 || conn < 0 || lossKm < 0 || lossConn < 0) { document.getElementById("calc_resultado").innerHTML = '<div class="calcResultado calcResultadoErro"><p>⚠️ Valores negativos não permitidos</p></div>'; return; }
+  if (isNaN(olt)||isNaN(km)||isNaN(lossKm)||isNaN(conn)||isNaN(lossConn)) { document.getElementById("calc_resultado").innerHTML = '<div class="calcResultado calcResultadoErro"><p>âš ï¸ Preencha todos os campos</p></div>'; return; }
+  if (km < 0 || conn < 0 || lossKm < 0 || lossConn < 0) { document.getElementById("calc_resultado").innerHTML = '<div class="calcResultado calcResultadoErro"><p>âš ï¸ Valores negativos nÃ£o permitidos</p></div>'; return; }
   let perda = km * lossKm + conn * lossConn;
   const splitters = document.querySelectorAll("#calc_splitters .splitter"); const cadeia = [];
   splitters.forEach(s => { const v = parseFloat(s.value); if (v > 0) { perda += v; cadeia.push(v); } });
-  const final = olt - perda; const ok = final >= threshold; const style = ok ? "calcResultadoSucesso" : "calcResultadoErro"; const status = ok ? "🟢 OK (Dentro do padrão)" : "🔴 RUIM (Perda alta)";
-  document.getElementById("calc_resultado").innerHTML = `<div class="calcResultado ${style}"><p>📡 OLT: ${olt} dBm</p><p>📉 Fibra: ${(km*lossKm).toFixed(2)} dB</p><p>🔌 Conectores: ${(conn*lossConn).toFixed(2)} dB</p><p>🔀 Splitters: ${cadeia.join(" + ") || 0} dB</p><hr style="margin:15px 0;border:none;border-top:1px solid rgba(255,255,255,0.1);"><h3>⚡ Potência final: ${final.toFixed(2)} dBm</h3><h3>${status}</h3><p style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.7);">Perda total: ${perda.toFixed(2)} dB</p></div>`;
+  const final = olt - perda; const ok = final >= threshold; const style = ok ? "calcResultadoSucesso" : "calcResultadoErro"; const status = ok ? "ðŸŸ¢ OK (Dentro do padrÃ£o)" : "ðŸ”´ RUIM (Perda alta)";
+  document.getElementById("calc_resultado").innerHTML = `<div class="calcResultado ${style}"><p>ðŸ“¡ OLT: ${olt} dBm</p><p>ðŸ“‰ Fibra: ${(km*lossKm).toFixed(2)} dB</p><p>ðŸ”Œ Conectores: ${(conn*lossConn).toFixed(2)} dB</p><p>ðŸ”€ Splitters: ${cadeia.join(" + ") || 0} dB</p><hr style="margin:15px 0;border:none;border-top:1px solid rgba(255,255,255,0.1);"><h3>âš¡ PotÃªncia final: ${final.toFixed(2)} dBm</h3><h3>${status}</h3><p style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.7);">Perda total: ${perda.toFixed(2)} dB</p></div>`;
 }
 
 // ===========================
@@ -2175,7 +2245,7 @@ auth.onAuthStateChanged(async (user) => {
         mostrarTelaBloqueio(erro.message, erro.data?.status);
         return;
       }
-      console.error("Erro ao inicializar sessão:", erro);
+      console.error("Erro ao inicializar sessÃ£o:", erro);
     }
   } else {
     usuarioAtual = { uid: null, email: null, role: null, tenantId: null };
